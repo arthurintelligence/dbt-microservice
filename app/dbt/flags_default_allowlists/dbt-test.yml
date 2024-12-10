@@ -1,0 +1,9 @@
+exclude: true
+profiles_dir: false
+project_dir: false
+select: true
+selector: true
+store_failures: true
+target_path: false
+threads: true
+vars: true

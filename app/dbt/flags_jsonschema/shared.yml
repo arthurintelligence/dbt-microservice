@@ -1,0 +1,199 @@
+$id: "dbt-shared-schema"
+type: object
+description: Shared flags for dbt
+properties:
+  cache_selected_only:
+    type: integer
+    enum: [0, 1]
+    description: > 
+      At start of run, populate relational cache only for schemas containing selected nodes.
+      1 is equivalent to setting --cache-selected-only flag, while 0 is equivalent to setting 
+      --no-cache-selected-only flag
+  debug:
+    type: integer
+    enum: [0, 1]
+    description: > 
+      Display debug logging during execution.
+      1 is equivalent to setting --debug flag, while 0 is equivalent to setting 
+      --no-debug flag
+  defer:
+    type: integer
+    enum: [0, 1]
+    description: >
+      If set, resolve unselected nodes by deferring to the manifest within the --state
+      directory.
+      1 is equivalent to setting --defer flag, while 0 is equivalent to setting
+      --no-defer flag
+  defer_state:
+    type: string
+    format: path
+    custom/path/ftype: directory
+    description: Override the state directory for deferral only
+  deprecated_favor_state:
+    type: string
+    description: Internal flag for deprecating old env var
+  fail_fast:
+    type: integer
+    enum: [0, 1]
+    description: > 
+      Stop execution on first failure.
+      1 is equivalent to setting --fail-fast flag, while 0 is equivalent to setting 
+      --no-fail-fast flag
+  favor_state:
+    type: integer
+    enum: [0, 1]
+    description: >
+      Defer to state flag for resolving unselected nodes.
+      1 is equivalent to setting --favor-state flag, while 0 is equivalent to setting 
+      --no-favor-state flag
+  indirect_selection:
+    type: string
+    enum: [eager, cautious, buildable, empty]
+    description: >
+      Choose which tests to select that are adjacent to selected resources. Eager is
+      most inclusive, cautious is most exclusive, and buildable is in between.
+      Empty includes no tests at all.
+  log_cache_events:
+    type: integer
+    enum: [0, 1]
+    description: >
+      Enable verbose logging for relational cache events.
+      1 is equivalent to setting --log-cache-events flag, while 0 is equivalent to setting 
+      --no-log-cache-events flag
+  log_format:
+    type: string
+    enum: [text, debug, json, default]
+    description: >
+      Specify the format of logging to the console and the log file.
+      Use --log-format-file to configure the format for the log file.
+  log_format_file:
+    type: string
+    enum: [text, debug, json, default]
+    description: Specify the format of logging to the log file
+  log_level:
+    type: string
+    enum: [debug, info, warn, error, none]
+    description: >
+      Specify the minimum severity of events that are logged to the console and 
+      the log file. Use --log-level-file to configure the severity for the log 
+      file differently than the console.
+  log_level_file:
+    type: string
+    enum: [debug, info, warn, error, none]
+    description: >
+     Specify the minimum severity of events that are logged to the log file by
+     overriding the default value and the general --log-level setting.
+  log_path:
+    type: string
+    format: path
+    custom/path/ftype: file
+    custom/path/exists: false
+    description: Configure log path for current run
+  partial_parse:
+    type: integer
+    enum: [0, 1]
+    description: >
+      Allow for partial parsing by looking for and writing to a pickle file in
+      the target directory. This overrides the user configuration file.
+      1 is equivalent to setting --partial-parse flag, while 0 is equivalent to setting 
+      --no-partial-parse flag
+  populate_cache:
+    type: integer
+    enum: [0, 1]
+    description: >
+      At start of run, use `show` or `information_schema` queries to populate a
+      relational cache, which can speed up subsequent materializations.
+      1 is equivalent to setting --populate-cache flag, while 0 is equivalent to setting 
+      --no-populate-cache flag
+  print:
+    type: integer
+    enum: [0, 1]
+    description: >
+      Output all {{ print() }} macro calls
+      1 is equivalent to setting --print flag, while 0 is equivalent to setting 
+      --no-print flag
+  printer_width:
+    type: integer
+    minimum: 40
+    description: Width of terminal output
+  profile:
+    type: string
+    custom/enum/from: dbt.profiles
+    description: Which existing profile to load
+  quiet:
+    type: integer
+    enum: [0, 1]
+    description: >
+      Suppress non-error logging
+      1 is equivalent to setting --quiet flag, while 0 is equivalent to setting 
+      --no-quiet flag
+  record_timing_info:
+    type: string
+    format: path
+    custom/path/ftype: file
+    description: Output low-level timing stats to the specified file
+  send_anonymous_usage_stats:
+    type: boolean
+    description: Send anonymous usage stats to dbt Labs
+  state:
+    type: string
+    format: path
+    custom/path/ftype: directory
+    description: Use this state directory for both state comparison and deferral
+  static_parser:
+    type: integer
+    enum: [0, 1]
+    description: >
+      Use static parser
+      1 is equivalent to setting --static-parser flag, while 0 is equivalent to setting 
+      --no-static-parser flag
+  target:
+    type: string
+    description: Which target to load for the given profile
+  use_colors:
+    type: boolean
+    description: Specify whether log output is colorized
+  use_colors_file:
+    type: integer
+    enum: [0, 1]
+    description: > 
+      Colorize log output
+      1 is equivalent to setting --use-colors flag, while 0 is equivalent to setting 
+      --no-use-colors flag
+  use_experimental_parser:
+    type: integer
+    enum: [0, 1]
+    description: > 
+      Enable experimental parsing features
+      1 is equivalent to setting --use-experimental-parser flag, while 0 is equivalent to setting 
+      --no-use-experimental-parser flag
+  version:
+    type: boolean
+    description: Show version information
+  version_check:
+    type: integer
+    enum: [0, 1]
+    description: >
+      If set, ensure the installed dbt version matches the require-dbt-version specified in
+      the dbt_project.yml file (if any).
+      Otherwise, allow them to differ.
+      1 is equivalent to setting --version-check flag, while 0 is equivalent to setting 
+      --no-version-check flag
+  warn_error:
+    type: boolean
+    description: Raise exception instead of warning
+  warn_error_options:
+    type: object
+    description: >
+      If dbt would normally warn, instead raise an exception based on include/exclude
+      configuration. Examples include --select that selects nothing, deprecations,
+      configurations with no associated models, invalid test configurations, and
+      missing sources/refs in tests. This argument should be a YAML string, with keys
+      'include' or 'exclude'. eg. '{"include": "all", "exclude": ["NoNodesForSelectionCriteria"]}'
+  write_json:
+    type: integer
+    enum: [0, 1]
+    description: >
+      Write manifest and results JSON files.
+      1 is equivalent to setting --write-json flag, while 0 is equivalent to setting 
+      --no-write-json flag
