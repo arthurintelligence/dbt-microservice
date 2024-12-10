@@ -1,0 +1,72 @@
+[tool.poetry]
+name = "dbt-microservice"
+version = "0.1.0"
+description = "A microservice for executing dbt commands as an API"
+authors = [
+    "Philippe Hebert <philippe@goarthur.ai>",
+    "Claude (Anthropic AI Assistant) <support@anthropic.com>",
+    "ChatGPT (OpenAI AI Assistant) <support@openai.com>"
+]
+package-mode = false
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.115.5"
+httpx = "^0.28.0"
+google-cloud-logging = "^3.11.3"
+google-cloud-secret-manager = "^2.21.1"
+pydantic = "^2.10.3"
+pydantic-settings = "^2.6.1"
+python-jose = {extras = ["cryptography"], version = "^3.3.0"}  # For JWT handling
+uvicorn = "^0.32.1"
+pyyaml = "^6.0.2"
+deepmerge = "^2.0"
+convert-case = "^1.2.3"
+jsonschema = "^4"
+
+[tool.poetry.group.dev.dependencies]
+autoflake = "^2.3.1"
+black = "^24.10.0"
+isort = "^5.13.2"
+flake8 = "^7.1.1"
+mypy = "^1.13.0"
+pre-commit = "^4.0.1"
+types-python-jose = "^3.3.4.20240106"
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.4"
+pytest-asyncio = "^0.24.0"
+pytest-cov = "^6.0.0"
+pytest-mock = "^3.14.0"
+pytest-describe = "^2.2.0"
+pytest-watch = "^4.2.0"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py312']
+include = '\.py$'
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+line_length = 88
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+
+[tool.pytest.ini_options]
+pythonpath = "."
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=app --cov-report=term-missing"
+asyncio_mode = "auto"
