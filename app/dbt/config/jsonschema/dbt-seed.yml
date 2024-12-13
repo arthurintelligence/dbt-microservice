@@ -17,16 +17,14 @@ allOf:
           table from the model definition.
       profiles_dir:
         type: string
-        format: path
-        custom/path/ftype: directory
+        coerce: directory
         description: >
           Directory containing profiles.yml file. If not set, dbt will look
           in the current working directory first, then
           HOME/.dbt/
       project_dir:
         type: string
-        format: path
-        custom/path/ftype: directory
+        coerce: directory
         description: >
           Directory containing dbt_project.yml file. Default is the current working
           directory and its parents.
@@ -43,7 +41,7 @@ allOf:
         description: Show a sample of the loaded data in the terminal.
       target_path:
         type: string
-        format: path
+        coerce: directory
         description: >
           Configure the 'target-path'. Only applies this setting for the current run.
           Overrides the 'DBT_TARGET_PATH' if it is set.

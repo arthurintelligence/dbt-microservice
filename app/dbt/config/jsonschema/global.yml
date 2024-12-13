@@ -3,49 +3,53 @@ type: object
 description: Shared flags for dbt
 properties:
   cache_selected_only:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: > 
       At start of run, populate relational cache only for schemas containing selected nodes.
-      1 is equivalent to setting --cache-selected-only flag, while 0 is equivalent to setting 
-      --no-cache-selected-only flag
+      Truthy values are equivalent to setting --cache-selected-only flag,
+      while falsy values are equivalent --no-cache-selected-only flag.
   debug:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: > 
       Display debug logging during execution.
-      1 is equivalent to setting --debug flag, while 0 is equivalent to setting 
-      --no-debug flag
+      Truthy values are equivalent to setting --debug flag,
+      while falsy values are equivalent --no-debug flag.
   defer:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: >
       If set, resolve unselected nodes by deferring to the manifest within the --state
       directory.
-      1 is equivalent to setting --defer flag, while 0 is equivalent to setting
-      --no-defer flag
+      Truthy values are equivalent to setting --defer flag, while 0 is equivalent to setting
+      --no-defer flag.
   defer_state:
     type: string
-    format: path
-    custom/path/ftype: directory
+    coerce: directory
     description: Override the state directory for deferral only
   deprecated_favor_state:
     type: string
     description: Internal flag for deprecating old env var
   fail_fast:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: > 
       Stop execution on first failure.
-      1 is equivalent to setting --fail-fast flag, while 0 is equivalent to setting 
-      --no-fail-fast flag
+      Truthy values are equivalent to setting --fail-fast flag,
+      while falsy values are equivalent --no-fail-fast flag.
   favor_state:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: >
       Defer to state flag for resolving unselected nodes.
-      1 is equivalent to setting --favor-state flag, while 0 is equivalent to setting 
-      --no-favor-state flag
+      Truthy values are equivalent to setting --favor-state flag,
+      while falsy values are equivalent --no-favor-state flag.
   indirect_selection:
     type: string
     enum: [eager, cautious, buildable, empty]
@@ -54,12 +58,13 @@ properties:
       most inclusive, cautious is most exclusive, and buildable is in between.
       Empty includes no tests at all.
   log_cache_events:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: >
       Enable verbose logging for relational cache events.
-      1 is equivalent to setting --log-cache-events flag, while 0 is equivalent to setting 
-      --no-log-cache-events flag
+      Truthy values are equivalent to setting --log-cache-events flag,
+      while falsy values are equivalent --no-log-cache-events flag.
   log_format:
     type: string
     enum: [text, debug, json, default]
@@ -85,68 +90,70 @@ properties:
      overriding the default value and the general --log-level setting.
   log_path:
     type: string
-    format: path
-    custom/path/ftype: file
-    custom/path/exists: false
+    coerce: file
     description: Configure log path for current run
   partial_parse:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: >
       Allow for partial parsing by looking for and writing to a pickle file in
       the target directory. This overrides the user configuration file.
-      1 is equivalent to setting --partial-parse flag, while 0 is equivalent to setting 
-      --no-partial-parse flag
+      Truthy values are equivalent to setting --partial-parse flag,
+      while falsy values are equivalent --no-partial-parse flag.
   populate_cache:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: >
       At start of run, use `show` or `information_schema` queries to populate a
       relational cache, which can speed up subsequent materializations.
-      1 is equivalent to setting --populate-cache flag, while 0 is equivalent to setting 
-      --no-populate-cache flag
+      Truthy values are equivalent to setting --populate-cache flag,
+      while falsy values are equivalent --no-populate-cache flag.
   print:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: >
       Output all {{ print() }} macro calls
-      1 is equivalent to setting --print flag, while 0 is equivalent to setting 
-      --no-print flag
+      Truthy values are equivalent to setting --print flag,
+      while falsy values are equivalent --no-print flag.
   printer_width:
-    type: integer
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     minimum: 40
     description: Width of terminal output
   profile:
     type: string
-    custom/enum/from: dbt.profiles
     description: Which existing profile to load
   quiet:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: >
       Suppress non-error logging
-      1 is equivalent to setting --quiet flag, while 0 is equivalent to setting 
-      --no-quiet flag
+      Truthy values are equivalent to setting --quiet flag,
+      while falsy values are equivalent --no-quiet flag.
   record_timing_info:
     type: string
-    format: path
-    custom/path/ftype: file
+    coerce: file
     description: Output low-level timing stats to the specified file
   send_anonymous_usage_stats:
     type: boolean
     description: Send anonymous usage stats to dbt Labs
   state:
     type: string
-    format: path
-    custom/path/ftype: directory
+    coerce: directory
     description: Use this state directory for both state comparison and deferral
   static_parser:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: >
       Use static parser
-      1 is equivalent to setting --static-parser flag, while 0 is equivalent to setting 
-      --no-static-parser flag
+      Truthy values are equivalent to setting --static-parser flag,
+      while falsy values are equivalent --no-static-parser flag.
   target:
     type: string
     description: Which target to load for the given profile
@@ -154,31 +161,34 @@ properties:
     type: boolean
     description: Specify whether log output is colorized
   use_colors_file:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: > 
       Colorize log output
-      1 is equivalent to setting --use-colors flag, while 0 is equivalent to setting 
-      --no-use-colors flag
+      Truthy values are equivalent to setting --use-colors flag,
+      while falsy values are equivalent --no-use-colors flag.
   use_experimental_parser:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: > 
       Enable experimental parsing features
-      1 is equivalent to setting --use-experimental-parser flag, while 0 is equivalent to setting 
-      --no-use-experimental-parser flag
+      Truthy values are equivalent to setting --use-experimental-parser flag,
+      while falsy values are equivalent --no-use-experimental-parser flag.
   version:
     type: boolean
     description: Show version information
   version_check:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: >
       If set, ensure the installed dbt version matches the require-dbt-version specified in
       the dbt_project.yml file (if any).
       Otherwise, allow them to differ.
-      1 is equivalent to setting --version-check flag, while 0 is equivalent to setting 
-      --no-version-check flag
+      Truthy values are equivalent to setting --version-check flag,
+      while falsy values are equivalent --no-version-check flag.
   warn_error:
     type: boolean
     description: Raise exception instead of warning
@@ -191,9 +201,10 @@ properties:
       missing sources/refs in tests. This argument should be a YAML string, with keys
       'include' or 'exclude'. eg. '{"include": "all", "exclude": ["NoNodesForSelectionCriteria"]}'
   write_json:
-    type: integer
-    enum: [0, 1]
+    type: string
+    coerce: boolean
+    enum: ["1", "0", "yes", "no", "on", "off", "true", "false"]
     description: >
       Write manifest and results JSON files.
-      1 is equivalent to setting --write-json flag, while 0 is equivalent to setting 
-      --no-write-json flag
+      Truthy values are equivalent to setting --write-json flag,
+      while falsy values are equivalent --no-write-json flag

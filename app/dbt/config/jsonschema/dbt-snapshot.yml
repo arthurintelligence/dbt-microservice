@@ -1,6 +1,6 @@
-$id: "dbt-run-schema"
+$id: "dbt-snapshot-schema"
 type: object
-description: Flags for dbt run command
+description: Flags for dbt snapshot command
 additionalProperties: false
 allOf:
   - $ref: dbt-shared-schema
@@ -13,29 +13,17 @@ allOf:
         description: Specify the nodes to exclude
       profiles_dir:
         type: string
-        format: path
-        custom/path/ftype: directory
+        coerce: directory
         description: >
           Directory containing profiles.yml file. If not set, dbt will look
           in the current working directory first, then
           HOME/.dbt/
       project_dir:
         type: string
-        format: path
-        custom/path/ftype: directory
+        coerce: directory
         description: >
           Directory containing dbt_project.yml file. Default is the current working
           directory and its parents.
-      exclude:
-        type: array
-        items:
-          type: string
-        description: Specify the nodes to exclude
-      full_refresh:
-        type: boolean
-        description: >
-          Drop incremental models and fully-recalculate the incremental
-          table from the model definition.
       select:
         type: array
         items:
@@ -46,7 +34,7 @@ allOf:
         description: The selector name to use from selectors.yml
       target_path:
         type: string
-        format: path
+        coerce: directory
         description: >
           Configure the 'target-path'. Only applies this setting for the current run.
           Overrides the 'DBT_TARGET_PATH' if it is set.
