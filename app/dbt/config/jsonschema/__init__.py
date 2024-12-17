@@ -106,7 +106,7 @@ class DbtFlagsSchema(Validator):
 
         Raises:
             ExceptionGroup:
-                Raises an ExceptionGroup[ValueError] if one or more flags
+                Raises an ExceptionGroup[KeyError] if one or more flags
                 are not recognized as valid global dbt / dbt verb flags.
 
         Returns:
@@ -119,7 +119,7 @@ class DbtFlagsSchema(Validator):
             raise ExceptionGroup(
                 message,
                 [
-                    ValueError(
+                    KeyError(
                         flag_message(
                             verb,
                             flag,

@@ -22,16 +22,16 @@ class IniFileConfigProvider(BaseConfigProvider):
         Raises:
             FileNotFoundError:
                 If file specified by environment variable
-                "DBT_FLAGS_CONFIG_FILE" does not exist.
+                "DBT_CONFIG_FILE" does not exist.
             IsADirectoryError:
                 If file specified by environment variable
-                "DBT_FLAGS_CONFIG_FILE" is a directory.
+                "DBT_CONFIG_FILE" is a directory.
             ValueError:
                 If file specified by environment variable
-                "DBT_FLAGS_CONFIG_FILE" is not a .ini file.
+                "DBT_CONFIG_FILE" is not a .ini file.
 
         Returns:
-            Optional[configparser.ConfigParser]: 
+            Optional[configparser.ConfigParser]:
                 Content of the .ini file.
                 Returns None if DBT_CONFIG_FILE environment variable is not set.
         """
@@ -45,53 +45,87 @@ class IniFileConfigProvider(BaseConfigProvider):
             raise IsADirectoryError(f"DBT_CONFIG_FILE={config_file}.")
         if config_file.suffix != ".ini":
             raise ValueError(f"DBT_CONFIG_FILE={config_file} should be a .ini file")
+
         config = configparser.ConfigParser()
         config.read(os.getenv("DBT_CONFIG_FILE"), encoding="utf-8")
-        return config
+
+        return None if len(config.sections()) == 0 else config
 
     def __init__(self):
         self.config = IniFileConfigProvider._read_ini_file()
 
     def get_allowed_verbs(self, available_verbs: Set[str]) -> Optional[Set[str]]:
         """
-        Extracts allowed dbt verbs from [dbt].allowed_verb option.
+        Extracts allowed dbt verbs from [dbt].allowed_verbs option.
+        "*" will be expanded to all available verbs.
 
         Arguments:
             available_verbs (Set[str]): Set of all verbs supported by the
                                         microservice implementation
 
-        Raises:
-            ValueError: If value is not in the form `verb(,verb)+`
-            ValueError: If verbs listed in [dbt].allowed_verbs are not in
-                        available_verbs
+        Returns:
+            Optional[Set[str]]: 
+                Set of allowed verbs if any.
+                Returns None if the option is not set.
+        """
+        return self._get_verbs_from_option(
+            "dbt",
+            "allowed_verbs",
+            available_verbs
+        )
+
+    def get_env_variables(self, verb: Optional[str]) -> Optional[Dict[str, Any]]:
+        """
+        Extracts environment variables values from the `[dbt.env_vars]`
+        section for global env vars, and the `[dbt.{verb}.env_vars]`
+        section for verb-specific env vars.
+        Assumes env vars keys are in screaming snake case, but formats to
+        screaming snake case for uniformity and safety reasons.
+
+        Args:
+            verb (Optional[str], optional):
+                dbt verb to get the flags for.
+                If verb=None, returns the internal values for global flags.
 
         Returns:
-            Optional[Set[str]]: Set of allowed verbs if any, None otherwise.
+            Dict[str, str]:
+                Dict[env_var, value] for the given verb, from ini.
+                Values returned are not parsed.
         """
-        if not self.config.has_option("dbt", "allowed_verbs"):
+        section_name = (
+            "dbt.env_vars" if verb is None else f"dbt.{verb}.env_vars"
+        )
+        section = self._read_ini_section(section_name)
+        if section is None or len(section) == 0:
             return None
 
-        # Verify that the value matches expected format
-        allowed_verb_str = self.config.get("dbt", "allowed_verbs")
-        if not re.match(r"^([a-z][a-z\-]+,?)+$", allowed_verb_str):
-            raise ValueError(
-                'INI: [dbt].allowed_verbs: Should be in the form "verb(,verb)+".'
-            )
+        return {snake_case(key).upper(): value for key, value in section.items()}
 
-        allowed_verbs = set(verb for verb in allowed_verb_str.split(","))
-        # Verify that the verbs that have been set in env are supported
-        if not allowed_verbs.issubset(available_verbs):
-            unsupported_verbs = allowed_verbs - available_verbs
-            raise ValueError(
-                f"INI: [dbt].allowed_verbs: Verbs {list(unsupported_verbs)} "
-                "are not supported"
-            )
-        return allowed_verbs
+    def get_env_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
+        """
+        Extracts the set of verbs for which the global environment variables
+        are to be applied, from the `[dbt].apply_global_env_vars` option.
+        "*" will be expanded to all available verbs.
+
+        Args:
+            available_verbs (Set[str]):
+                Set of all available (supported) verbs, for validation
+
+        Returns:
+            Optional[Set[str]]:
+                Set of verbs to apply the global internal flag values to, if any.
+                Returns None if the option is not set.
+        """
+        return self._get_verbs_from_option(
+            "dbt",
+            "apply_global_env_vars",
+            available_verbs
+        )
 
     def get_flag_allowlist(self, verb: Optional[str]) -> Optional[Dict[str, bool]]:
         """
-        Extracts allowlist from [dbt.flags.allowlist] section for global flags,
-        and [dbt.{verb}.flags.allowlist] for verb-specific flags.
+        Extracts allowlist from `[dbt.flags.allowlist]` section for global flags,
+        and `[dbt.{verb}.flags.allowlist]` for verb-specific flags.
         To enable a flag, use a truthy value (yes, on, 1, true).
         To disable a flag, use a falsy value (no, off, 0, false).
         Expects all flag names to be valid flag names for given verb or global.
@@ -122,6 +156,28 @@ class IniFileConfigProvider(BaseConfigProvider):
             flags=allowlist
         )
         return allowlist
+
+    def get_flag_allowlist_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
+        """
+        Extracts the set of verbs for which the configured global dbt allowlist 
+        will be merged to their respective verb allowlist, from the
+        `[dbt].apply_global_allowlist` option.
+        "*" will be expanded to all available verbs.
+
+        Arguments:
+            available_verbs (Set[str]): Set of all verbs supported by the
+                                        microservice implementation
+
+        Returns:
+            Optional[Set[str]]: 
+                Set of verbs to apply the global allowlist to, if any.
+                Returns None if the option is not set.
+        """
+        return self._get_verbs_from_option(
+            "dbt",
+            "apply_global_allowlist",
+            available_verbs
+        )
 
     def get_flag_internal_values(self, verb: Optional[str]) -> Optional[Dict[str, Any]]:
         """
@@ -160,32 +216,26 @@ class IniFileConfigProvider(BaseConfigProvider):
         )
         return flags
 
-    def get_env_variables(self, verb: Optional[str]) -> Optional[Dict[str, Any]]:
+    def get_flag_internal_values_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
         """
-        Extracts environment variables values from the `[dbt.env_vars]`
-        section for global env vars, and the `[dbt.{verb}.env_vars]`
-        section for verb-specific env vars.
-        Assumes env vars keys are in screaming snake case, but formats to
-        screaming snake case for uniformity and safety reasons.
+        Extracts the set of verbs for which the global internal flag values are
+        to be applied, from the `[dbt].apply_global_internal_flag_values` option.
+        "*" will be expanded to all available verbs.
 
         Args:
-            verb (Optional[str], optional):
-                dbt verb to get the flags for.
-                If verb=None, returns the internal values for global flags.
+            available_verbs (Set[str]):
+                Set of all available (supported) verbs, for validation
 
         Returns:
-            Dict[str, str]:
-                Dict[env_var, value] for the given verb, from ini.
-                Values returned are not parsed.
+            Optional[Set[str]]:
+                Set of verbs to apply the global internal flag values to, if any.
+                Returns None if the option is not set.
         """
-        section_name = (
-            "dbt.env_vars" if verb is None else f"dbt.{verb}.env_vars"
+        return self._get_verbs_from_option(
+            "dbt",
+            "apply_global_internal_flag_values",
+            available_verbs
         )
-        section = self._read_ini_section(section_name)
-        if section is None or len(section) == 0:
-            return None
-
-        return {snake_case(key).upper(): value for key, value in section.items()}
 
     def get_projects_root_dir(self) -> Optional[Path]:
         """
@@ -197,7 +247,9 @@ class IniFileConfigProvider(BaseConfigProvider):
             NotADirectoryError: If the path is not a valid directory
 
         Returns:
-            Optional[Set[str]]: Set of allowed verbs if any, None otherwise.
+            Optional[Path]:
+                Path to the projects root directory, if any.
+                Returns None if not configured.
         """
         if not self.config.has_option("dbt", "projects_root_dir"):
             return None
@@ -215,7 +267,7 @@ class IniFileConfigProvider(BaseConfigProvider):
         Extracts variables values from the `[dbt.vars]`
         section for global env vars, and the `[dbt.{verb}.vars]`
         section for verb-specific env vars.
-        Assumes env vars keys are in snake case, but formats to snake case for
+        Assumes vars keys are in snake case, but formats to snake case for
         uniformity and safety reasons.
 
         Args:
@@ -236,6 +288,79 @@ class IniFileConfigProvider(BaseConfigProvider):
             return None
 
         return {snake_case(key): value for key, value in section.items()}
+
+    def get_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
+        """
+        Extracts the set of verbs for which the global environment variables
+        are to be applied, from the `[dbt].apply_global_vars` option.
+        "*" will be expanded to all available verbs.
+
+        Args:
+            available_verbs (Set[str]):
+                Set of all available (supported) verbs, for validation
+
+        Returns:
+            Optional[Set[str]]:
+                Set of verbs to apply the globally set variables to, if any.
+                Returns None if the option is not set.
+        """
+        return self._get_verbs_from_option(
+            "dbt",
+            "apply_global_vars",
+            available_verbs
+        )
+
+    def _get_verbs_from_option(
+        self,
+        section: str,
+        option: str,
+        available_verbs: Set[str]
+    ) -> Optional[Set[str]]:
+        """
+        Extracts a set of comma-separated dbt verbs from a (section, option)
+        in the ini file, and validates the result against available verbs.
+        "*" will be expanded to all available verbs.
+
+        Args:
+            section (str): Name of the section in the ini file to load
+            option (str): Name of the option to load from specified section
+            available_verbs (Set[str]): 
+                Set of all available (supported) verbs, for validation
+
+        Raises:
+            ValueError: If value is not in the form `verb(,verb)+`
+            ValueError: If verbs listed in the environment variable
+                        are not in available_verbs
+
+        Returns:
+            Optional[Set[str]]: 
+                Set of verbs in (section, option), if set.
+                Returns None if the option is not set.
+        """
+        if not self.config.has_option(section, option):
+            return None
+
+        # Verify that the value matches expected format
+        value_str = self.config.get(section, option)
+        if not re.match(r"^(([a-z][a-z\-]+|[*]),?)+$", value_str):
+            raise ValueError(
+                f'INI: [{section}].{option}: Should be in the form "verb(,verb)+".'
+            )
+
+        value = set(verb for verb in value_str.split(","))
+        if "*" in value:
+            value.remove("*")
+            value = value | available_verbs
+
+        # Verify that the verbs that have been set in env are supported
+        if not value.issubset(available_verbs):
+            unsupported_verbs = value - available_verbs
+            raise ValueError(
+                f"INI: [{section}].{option}: Verbs {list(unsupported_verbs)} "
+                "are not supported"
+            )
+        return value
+
 
     def _read_ini_section(self, name: str) -> Optional[Dict[str, Any]]:
         """Shorthand for reading a section from config file"""

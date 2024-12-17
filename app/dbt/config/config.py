@@ -8,15 +8,23 @@ from app.dbt.config.errors import ValidationError
 
 __all__ = ["DbtConfig", "DbtConfigLoader"]
 
+# TODO:
+# - Add logs for overrides from verb over global for env, variables
+# - Update test_environment tests for unsupported verbs to use the whole
+#   list of unsupported dbt verbs
 
 @dataclass(frozen=True)
 class DbtConfig:
-    allowed_verbs: Set[str] # Set[verb]
-    allowlists: Dict[str, Dict[str, bool]]  # Dict[verb, Dict[flag, enabled]]
-    env_variables: Dict[str, str]  # Dict[env_var, value]
-    internal_flag_values: Dict[str, Dict[str, str]]  # Dict[verb, Dict[flag, value]]
+    allowed_verbs: Set[str]  # Set[verb]
+    env_variables: Dict[str, Dict[str, str]]  # Dict[env_var, value]
+    env_variables_apply_global: Set[str]  # Set[verb]
+    flag_allowlists: Dict[str, Dict[str, bool]]  # Dict[verb, Dict[flag, enabled]]
+    flag_allowlists_apply_global: Set[str]  # Set[verb]
+    flag_internal_values: Dict[str, Dict[str, str]]  # Dict[verb, Dict[flag, value]]
+    flag_internal_values_apply_global: Set[str]  # Set[verb]
     projects_root_dir: Path
     variables: Dict[str, str]  # Dict[var_name, value]
+    variables_apply_global: Set[str]  # Set[verb]
 
     @classmethod
     def create_instance(cls, providers: List[BaseConfigProvider] = None):
@@ -42,10 +50,14 @@ class DbtConfig:
         for attr, (scope, method_name, kwargs) in [
             ("allowed_verbs", ("global", "get_allowed_verbs", {"available_verbs": available_verbs})),
             ("flag_allowlists", ("verb", "get_flag_allowlist", {})),
+            ("flag_allowlists_apply_global", ("verb", "get_flag_allowlist_apply_global", {"available_verbs": available_verbs})),
             ("env_variables", ("verb", "get_env_variables", {})),
+            ("env_variables_apply_global", ("global", "get_env_variables_apply_global", {"available_verbs": available_verbs})),
             ("flag_internal_values", ("verb", "get_flag_internal_values", {})),
+            ("flag_internal_values_apply_global", ("global", "get_flag_internal_values_apply_global", {"available_verbs": available_verbs})),
             ("projects_root_dir", ("global", "get_projects_root_dir", {})),
             ("variables", ("verb", "get_variables", {})),
+            ("variables_apply_global", ("global", "get_variables_apply_global", {"available_verbs": available_verbs})),
         ]:
             if scope == "verb":
                 for verb in [None, *available_verbs]:
