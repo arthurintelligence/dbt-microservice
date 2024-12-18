@@ -77,10 +77,11 @@ class EnvironmentConfigProvider(BaseConfigProvider):
             )
 
         def rename(key):
-            if _is_truthy(os.getenv("DBT_RENAME_ENV")) and is_base_var(key):
-                return key.replace(f"DBT_{verb_str}ENV_", "DBT_")
-            else:
-                return key.replace(verb_str, '')
+            return (
+                key.replace(f"DBT_{verb_str}ENV_", "DBT_")
+                if _is_truthy(os.getenv("DBT_RENAME_ENV")) and is_base_var(key)
+                else key.replace(verb_str, '')
+            )
 
         env_base_vars = {
             rename(key): value
@@ -158,7 +159,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
                     "Should be a comma-separated list of flags in kebab case."
                 )
             enable = "ENABLE" in variable
-            sub_allowlist.update({flag: enable for flag in value.split(",")})
+            sub_allowlist.update({snake_case(flag): enable for flag in value.split(",")})
 
             # Raises ExceptionGroup[ValueError] if one or more flags
             # are not recognized
@@ -238,7 +239,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
             if name.startswith(var_prefix):
                 # Remove the prefix & convert to snake case for validation
                 # against available_flags
-                flag_name = snake_case(name[len(var_prefix):])
+                flag_name = name[len(var_prefix):].lower()
                 flags[flag_name] = value
         
         if len(flags) == 0:
@@ -248,9 +249,9 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         # are not recognized
         DbtFlagsSchema.validate_flag_availability(
             verb=verb,
-            message=f"ENV {var_prefix}*: Unrecognized flags",
+            message=f"ENV: {var_prefix}*: Unrecognized flags",
             flag_message=lambda _, flag, is_not_recognized_str: (
-                f'ENV: {var_prefix}{flag.upper()}: "--{kebab_case(flag)}"'
+                f'ENV: {var_prefix}{flag.upper()}: "--{kebab_case(flag.lower())}"'
                 + is_not_recognized_str
             ),
             flags=flags
@@ -355,12 +356,11 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         """
         if not os.getenv(env_var_name):
             return None
-
         # Verify that the value matches expected format
-        if not re.match(r"^([a-z][a-z\-]+,?)+$", os.getenv(env_var_name)):
+        if not re.match(r"^(([a-z][a-z\-]+,?)|[*])+$", os.getenv(env_var_name)):
             raise ValueError(
-                "ENV: {env_var_name}: "
-                "Should be in the form 'verb(,verb)+'."
+                f"ENV: {env_var_name}: "
+                "Should be in the form 'verb(,verb)+'"
             )
 
         value = set(
@@ -373,7 +373,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         if not value.issubset(available_verbs):
             unsupported_verbs = value - available_verbs
             raise ValueError(
-                f"ENV: {env_var_name}: Verbs {list(unsupported_verbs)} "
+                f"ENV: {env_var_name}: Verbs {sorted(unsupported_verbs)} "
                 "are not supported"
             )
         return value

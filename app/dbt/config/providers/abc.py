@@ -5,8 +5,8 @@ from typing import Any, Dict, Optional, Set
 
 __all__ = ["BaseConfigProvider"]
 
-@abc.abc
-class BaseConfigProvider:
+
+class BaseConfigProvider(abc.ABC):
     @abc.abstractmethod
     def get_allowed_verbs(self, available_verbs: Set[str]) -> Optional[Set[str]]:
         """

@@ -61,7 +61,7 @@ class DbtFlagsSchema(Validator):
 
         # else verb is not none, means we are looking for verb flags
         verb_schema = None
-        with open(DIRPATH / "global.yml", "r", encoding="utf-8") as file:
+        with open(DIRPATH / f"dbt-{verb}.yml", "r", encoding="utf-8") as file:
             verb_schema = yaml.load(file, Loader=yaml.SafeLoader)
             # Extract properties from verb_schema:
             # - allOf[0] is expected to be $ref to dbt-global-schema

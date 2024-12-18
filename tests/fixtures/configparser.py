@@ -3,9 +3,11 @@ from configparser import ConfigParser
 from typing import Dict, Any
 from uuid import uuid4
 
+import pytest
+
 from tests.fixtures.mock_env import MockEnv
 
-__all__ = ["AutoCommitConfigParser", "fixtures"]
+__all__ = ["AutoCommitConfigParser"]
 
 
 class AutoCommitConfigParser(ConfigParser):
@@ -86,33 +88,3 @@ class AutoCommitConfigParser(ConfigParser):
 
     def read_dict(self, *args, **kwargs):
         raise NotImplementedError("Use write_dict instead")
-
-
-def ini_config(mock_env: MockEnv, tmp_path: Path) -> AutoCommitConfigParser:
-    """
-    Fixture that eases management of a .ini file.
-    Generates a default, empty ini file, saves its path to \
-    DBT_CONFIG_FILE environment variable, and returns an \
-    AutoCommitConfigParser instance.
-
-    Args:
-        mock_env (MockEnv): mock_env fixture from tests.fixtures.mock_env
-        tmp_path (Path): tmp_path fixture from pytest fixtures, pointing to tmp directory
-
-    Usage:
-        def test_something(ini_config: AutoCommitConfigParser):
-            ini_config.write_dict({
-                "section": {"option": "value"}
-            })
-    
-    Returns:
-        AutoCommitConfigParser: ConfigParser instance for the .ini config file for the test.
-    """
-    path = tmp_path / f"/{uuid4()}/config.ini"
-    mock_env.setenv("DBT_CONFIG_FILE", path)
-    return AutoCommitConfigParser(path)
-
-
-fixtures = {
-    "ini_config": ini_config
-}

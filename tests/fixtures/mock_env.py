@@ -1,6 +1,8 @@
 import os
 
-__all__ = ["MockEnv", "fixtures"]
+import pytest
+
+__all__ = ["MockEnv"]
 
 
 class MockEnv:
@@ -37,28 +39,3 @@ class MockEnv:
         """Delete an environment variable."""
         self.modified.add(key)
         self.monkeypatch.delenv(key, raising)
-
-
-def mock_env(monkeypatch):
-    """
-    Fixture that tracks and restores environment variable changes made during tests.
-
-    This fixture yields a MockEnv instance that wraps the standard \
-    monkeypatch fixture. It tracks all environment variable changes and \
-    restores them to their original state after the test completes.
-
-    Usage:
-        def test_something(mock_env):
-            mock_env.setenv("MY_VAR", "value")
-            mock_env.delenv("OTHER_VAR")
-
-    Yields:
-        MockEnv: A MockEnv instance that resets environment between tests
-    """
-    with MockEnv(monkeypatch) as _mock_env:
-        yield _mock_env
-
-
-fixtures = {
-    "mock_env": mock_env
-}
