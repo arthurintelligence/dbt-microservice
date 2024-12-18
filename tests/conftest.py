@@ -1,18 +1,27 @@
+# pylint: disable=redefined-outer-name
+"""
+Test configuration file.
+Adds the app directory to the sys path and registers test fixtures.
+"""
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
 from tests.fixtures.mock_env import MockEnv
 from tests.fixtures.configparser import AutoCommitConfigParser
 
+
 # Add the app directory to the Python path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
+
 
 @pytest.fixture
 def mock_env(monkeypatch):
     """
-    Fixture that tracks and restores environment variable changes made during tests.
+    Fixture that tracks and restores environment variable changes made during \
+    tests.
 
     This fixture yields a MockEnv instance that wraps the standard \
     monkeypatch fixture. It tracks all environment variable changes and \
@@ -29,6 +38,7 @@ def mock_env(monkeypatch):
     with MockEnv(monkeypatch) as _mock_env:
         yield _mock_env
 
+
 @pytest.fixture
 def ini_config(mock_env: MockEnv, tmp_path: Path) -> AutoCommitConfigParser:
     """
@@ -39,16 +49,20 @@ def ini_config(mock_env: MockEnv, tmp_path: Path) -> AutoCommitConfigParser:
 
     Args:
         mock_env (MockEnv): mock_env fixture from tests.fixtures.mock_env
-        tmp_path (Path): tmp_path fixture from pytest fixtures, pointing to tmp directory
+        tmp_path (Path):
+            tmp_path fixture from pytest fixtures, pointing to \
+            tmp directory
 
     Usage:
         def test_something(ini_config: AutoCommitConfigParser):
             ini_config.write_dict({
                 "section": {"option": "value"}
             })
-    
+
     Returns:
-        AutoCommitConfigParser: ConfigParser instance for the .ini config file for the test.
+        AutoCommitConfigParser:
+            ConfigParser instance for the .ini config file \
+            for the test.
     """
     path = tmp_path / f"/{uuid4()}/config.ini"
     mock_env.setenv("DBT_CONFIG_FILE", path)
