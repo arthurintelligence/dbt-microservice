@@ -5,20 +5,20 @@ Adds the app directory to the sys path and registers test fixtures.
 """
 import sys
 from pathlib import Path
+from typing import Generator
 from uuid import uuid4
 
 import pytest
 
-from tests.fixtures.mock_env import MockEnv
 from tests.fixtures.configparser import AutoCommitConfigParser
-
+from tests.fixtures.mock_env import MockEnv
 
 # Add the app directory to the Python path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 
 
 @pytest.fixture
-def mock_env(monkeypatch):
+def mock_env(monkeypatch: pytest.MonkeyPatch) -> Generator[MockEnv]:
     """
     Fixture that tracks and restores environment variable changes made during \
     tests.

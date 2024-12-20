@@ -1,6 +1,7 @@
-from pathlib import Path
+# mypy: disable-error-code="override, call-overload"
 from configparser import ConfigParser
-from typing import Dict, Any
+from pathlib import Path
+from typing import Any, Dict, Tuple
 
 __all__ = ["AutoCommitConfigParser"]
 
@@ -14,7 +15,7 @@ class AutoCommitConfigParser(ConfigParser):
     save changes to the specified path.
     """
 
-    def __init__(self, path: Path, *args, **kwargs):
+    def __init__(self, path: Path, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> None:
         """
         Initialize the parser with a specific file path.
 
@@ -32,7 +33,7 @@ class AutoCommitConfigParser(ConfigParser):
         if path.is_dir():
             raise IsADirectoryError(f"Path cannot be a directory: {path}")
 
-        if path.suffix != '.ini':
+        if path.suffix != ".ini":
             raise ValueError(f"File must have .ini suffix, got: {path}")
 
         self._path = path
@@ -58,7 +59,7 @@ class AutoCommitConfigParser(ConfigParser):
             string: String containing config in INI format
         """
         super().read_string(string)
-        with self._path.open('w') as f:
+        with self._path.open("w") as f:
             self.write(f)
 
     def write_dict(self, dictionary: Dict[str, Dict[str, Any]]) -> None:
@@ -69,18 +70,18 @@ class AutoCommitConfigParser(ConfigParser):
             dictionary: Dictionary containing configuration
         """
         super().read_dict(dictionary)
-        with self._path.open('w') as f:
+        with self._path.open("w") as f:
             self.write(f)
 
     # Hide inherited read methods
-    def read(self, *args, **kwargs):
+    def read(self, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> None:
         raise NotImplementedError("Use write_string or write_dict instead")
 
-    def read_string(self, *args, **kwargs):
+    def read_string(self, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> None:
         raise NotImplementedError("Use write_string instead")
 
-    def read_file(self, *args, **kwargs):
+    def read_file(self, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> None:
         raise NotImplementedError("Use write_string or write_dict instead")
 
-    def read_dict(self, *args, **kwargs):
+    def read_dict(self, *args: Tuple[Any, ...], **kwargs: Dict[str, Any]) -> None:
         raise NotImplementedError("Use write_dict instead")

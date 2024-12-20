@@ -1,21 +1,22 @@
 import os
 import re
-
 from pathlib import Path
 from typing import Any, Dict, Optional, Set, Union
 
 from convert_case import kebab_case, snake_case
 
 from app.dbt.config.jsonschema import DbtFlagsSchema
+
 from .abc import BaseConfigProvider
 
-
 __all__ = ["EnvironmentConfigProvider"]
+
 
 class EnvironmentConfigProvider(BaseConfigProvider):
     """
     Config provider to retrieve configuration from environment variables.
     """
+
     def get_allowed_verbs(self, available_verbs: Set[str]) -> Optional[Set[str]]:
         """
         Extracts allowed dbt verbs from environment variable `DBT_ALLOWED_VERBS`.
@@ -33,14 +34,11 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         Returns:
             Optional[Set[str]]: Set of allowed verbs if any, None otherwise.
         """
-        return self._get_verbs_from_environment_variable(
-            "DBT_ALLOWED_VERBS",
-            available_verbs
-        )
+        return self._get_verbs_from_environment_variable("DBT_ALLOWED_VERBS", available_verbs)
 
     def get_env_variables(self, verb: Optional[str]) -> Optional[Dict[str, str]]:
         """
-        Extracts all environment variables that start with DBT_ENV_* (global) or 
+        Extracts all environment variables that start with DBT_ENV_* (global) or
         DBT_{verb}_ENV_* (verb).
         If `DBT_RENAME_ENV` is set with a truthy value, renames
         `DBT_{verb?}_ENV_{VARIABLE}` vars to `DBT_{VARIABLE}` to match
@@ -58,48 +56,38 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         References:
             - [Environment Variables | dbt Developer Hub](https://docs.getdbt.com/docs/build/environment-variables)
         """
-        verb_str = '' if verb is None else f'{verb.upper()}_'
+        verb_str = "" if verb is None else f"{verb.upper()}_"
 
-        def is_env_var(key):
+        def is_env_var(key: str) -> int:
             return key.startswith(f"DBT_{verb_str}ENV_")
 
-        def is_secret_var(key):
+        def is_secret_var(key: str) -> int:
             return key.startswith(f"DBT_{verb_str}ENV_SECRET")
 
-        def is_custom_env_var(key):
+        def is_custom_env_var(key: str) -> int:
             return key.startswith(f"DBT_{verb_str}ENV_CUSTOM_ENV")
 
-        def is_base_var(key):
-            return (
-                is_env_var(key)
-                and not is_secret_var(key)
-                and not is_custom_env_var(key)
-            )
+        def is_base_var(key: str) -> int:
+            return is_env_var(key) and not is_secret_var(key) and not is_custom_env_var(key)
 
-        def rename(key):
+        def rename(key: str) -> str:
             return (
                 key.replace(f"DBT_{verb_str}ENV_", "DBT_")
                 if _is_truthy(os.getenv("DBT_RENAME_ENV")) and is_base_var(key)
-                else key.replace(verb_str, '')
+                else key.replace(verb_str, "")
             )
 
         env_base_vars = {
-            rename(key): value
-            for key, value in os.environ.items()
-            if is_base_var(key)
+            rename(key): value for key, value in os.environ.items() if is_base_var(key)
         }
         env_secret_vars = {
-            rename(key): value
-            for key, value in os.environ.items()
-            if is_secret_var(key)
+            rename(key): value for key, value in os.environ.items() if is_secret_var(key)
         }
         env_custom_vars = {
-            rename(key): value
-            for key, value in os.environ.items()
-            if is_custom_env_var(key)
+            rename(key): value for key, value in os.environ.items() if is_custom_env_var(key)
         }
         env_vars = {**env_base_vars, **env_secret_vars, **env_custom_vars}
-        
+
         return None if len(env_vars) == 0 else env_vars
 
     def get_env_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
@@ -118,14 +106,13 @@ class EnvironmentConfigProvider(BaseConfigProvider):
                 Returns None if environment variable is not set.
         """
         return self._get_verbs_from_environment_variable(
-            "DBT_APPLY_GLOBAL_ENV_VARS",
-            available_verbs
+            "DBT_APPLY_GLOBAL_ENV_VARS", available_verbs
         )
 
     def get_flag_allowlist(self, verb: Optional[str]) -> Optional[Dict[str, bool]]:
         """
         Extracts allowlist from environment variables.
-         - Uses `DBT_{ENABLE|DISABLE}_FLAGS` for global flags, 
+         - Uses `DBT_{ENABLE|DISABLE}_FLAGS` for global flags,
          - `DBT_{ENABLE|DISABLE}_{verb}_FLAGS` for verb-specific flags.
          - `{ENABLE}` variables are used to enable flags.
          - `{DISABLE}` variables are used to disable flags, and override
@@ -144,9 +131,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
                 Returns None if the allowlist is empty.
         """
 
-        def _parse_sub_allowlist(
-            variable: str, verb: Optional[bool] = None
-        ) -> Dict[str, bool]:
+        def _parse_sub_allowlist(variable: str, verb: Optional[str] = None) -> Dict[str, bool]:
             sub_allowlist = {}
             value = os.getenv(variable)
             if value is None:
@@ -170,7 +155,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
                     f'{type(self).__name__}: {variable}: "--{kebab_case(flag)}"'
                     + is_not_recognized_str
                 ),
-                flags=sub_allowlist
+                flags=sub_allowlist,
             )
             return sub_allowlist
 
@@ -179,19 +164,15 @@ class EnvironmentConfigProvider(BaseConfigProvider):
             allowlist.update(_parse_sub_allowlist("DBT_ENABLE_FLAGS", verb=None))
             allowlist.update(_parse_sub_allowlist("DBT_DISABLE_FLAGS", verb=None))
         else:
-            allowlist.update(_parse_sub_allowlist(
-                f"DBT_{verb.upper()}_ENABLE_FLAGS", verb=verb
-            ))
-            allowlist.update(_parse_sub_allowlist(
-                f"DBT_{verb.upper()}_DISABLE_FLAGS", verb=verb
-            ))
+            allowlist.update(_parse_sub_allowlist(f"DBT_{verb.upper()}_ENABLE_FLAGS", verb=verb))
+            allowlist.update(_parse_sub_allowlist(f"DBT_{verb.upper()}_DISABLE_FLAGS", verb=verb))
 
         return allowlist if len(allowlist) else None
 
     def get_flag_allowlist_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
         """
-        Extracts the set of verbs for which the configured global dbt allowlist 
-        will be merged to their respective verb allowlist, from the 
+        Extracts the set of verbs for which the configured global dbt allowlist
+        will be merged to their respective verb allowlist, from the
         `DBT_APPLY_GLOBAL_ALLOWLIST` environment variable.
         "*" will be expanded to all available verbs.
 
@@ -205,8 +186,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
                 Returns None if the environment variable is not set.
         """
         return self._get_verbs_from_environment_variable(
-            "DBT_APPLY_GLOBAL_ALLOWLIST",
-            available_verbs
+            "DBT_APPLY_GLOBAL_ALLOWLIST", available_verbs
         )
 
     def get_flag_internal_values(self, verb: Optional[str]) -> Optional[Dict[str, str]]:
@@ -239,9 +219,9 @@ class EnvironmentConfigProvider(BaseConfigProvider):
             if name.startswith(var_prefix):
                 # Remove the prefix & convert to snake case for validation
                 # against available_flags
-                flag_name = name[len(var_prefix):].lower()
+                flag_name = name[len(var_prefix) :].lower()
                 flags[flag_name] = value
-        
+
         if len(flags) == 0:
             return None
 
@@ -250,19 +230,21 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         DbtFlagsSchema.validate_flag_availability(
             verb=verb,
             message=f"{type(self).__name__}: {var_prefix}*: Unrecognized flags",
-            flag_message=lambda _, flag, is_not_recognized_str: (
-                f'{type(self).__name__}: {var_prefix}{flag.upper()}: "--{kebab_case(flag.lower())}"'
+            flag_message=lambda verb, flag_name, is_not_recognized_str: (
+                f'{type(self).__name__}: {var_prefix}{flag_name.upper()}: "--{kebab_case(flag_name.lower())}"'
                 + is_not_recognized_str
             ),
-            flags=flags
+            flags=flags,
         )
 
         return None if len(flags) == 0 else flags
 
-    def get_flag_internal_values_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
+    def get_flag_internal_values_apply_global(
+        self, available_verbs: Set[str]
+    ) -> Optional[Set[str]]:
         """
         Extract the set of verbs for which the global internal flag values are
-        to be applied, from the environment variable 
+        to be applied, from the environment variable
         `DBT_APPLY_GLOBAL_INTERNAL_FLAG_VALUES`.
         "*" will be expanded to all available verbs.
 
@@ -276,8 +258,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
                 Returns None if environment variable is not set.
         """
         return self._get_verbs_from_environment_variable(
-            "DBT_APPLY_GLOBAL_INTERNAL_FLAG_VALUES",
-            available_verbs
+            "DBT_APPLY_GLOBAL_INTERNAL_FLAG_VALUES", available_verbs
         )
 
     def get_projects_root_dir(self) -> Optional[Path]:
@@ -287,9 +268,10 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         Returns:
             Optional[Path]: `DBT_PROJECTS_ROOT` as a Path if set, None otherwise.
         """
-        if os.getenv("DBT_PROJECTS_ROOT") is None:
+        ENV_DBT_PROJECTS_ROOT = os.getenv("DBT_PROJECTS_ROOT")
+        if ENV_DBT_PROJECTS_ROOT is None:
             return None
-        return Path(os.getenv("DBT_PROJECTS_ROOT"))
+        return Path(ENV_DBT_PROJECTS_ROOT)
 
     def get_variables(self, verb: Optional[str]) -> Optional[Dict[str, Any]]:
         """
@@ -302,10 +284,10 @@ class EnvironmentConfigProvider(BaseConfigProvider):
                             Returns None if no variables were found
                             in environment.
         """
-        verb_str = '' if verb is None else f"{verb.upper()}_"
+        verb_str = "" if verb is None else f"{verb.upper()}_"
         prefix = f"DBT_{verb_str}VAR_"
         variables = {
-            key[len(prefix):].lower(): value
+            key[len(prefix) :].lower(): value
             for key, value in os.environ.items()
             if key.startswith(prefix)
         }
@@ -326,15 +308,10 @@ class EnvironmentConfigProvider(BaseConfigProvider):
                 Set of verbs which will be configured.
                 Returns None if environment variable is not set.
         """
-        return self._get_verbs_from_environment_variable(
-            "DBT_APPLY_GLOBAL_VARS",
-            available_verbs
-        )
+        return self._get_verbs_from_environment_variable("DBT_APPLY_GLOBAL_VARS", available_verbs)
 
     def _get_verbs_from_environment_variable(
-        self,
-        env_var_name: str,
-        available_verbs: Set[str]
+        self, env_var_name: str, available_verbs: Set[str]
     ) -> Optional[Set[str]]:
         """
         Extracts a set of comma-separated dbt verbs from an environment variable
@@ -343,7 +320,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
 
         Args:
             env_var_name (str): Name of the environment variable to load
-            available_verbs (Set[str]): 
+            available_verbs (Set[str]):
                 Set of all available (supported) verbs, for validation
 
         Raises:
@@ -354,18 +331,16 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         Returns:
             Optional[Set[str]]: _description_
         """
-        if not os.getenv(env_var_name):
+        env_var_value = os.getenv(env_var_name)
+        if not env_var_value:
             return None
         # Verify that the value matches expected format
-        if not re.match(r"^(([a-z][a-z\-]+,?)|[*])+$", os.getenv(env_var_name)):
+        if not re.match(r"^(([a-z][a-z\-]+,?)|[*])+$", env_var_value):
             raise ValueError(
-                f"{type(self).__name__}: {env_var_name}: "
-                "Should be in the form 'verb(,verb)+'"
+                f"{type(self).__name__}: {env_var_name}: " "Should be in the form 'verb(,verb)+'"
             )
 
-        value = set(
-            verb for verb in os.getenv(env_var_name).split(",")
-        )
+        value = set(verb for verb in env_var_value.split(","))
         if "*" in value:
             value.remove("*")
             value = value | available_verbs
@@ -379,6 +354,6 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         return value
 
 
-def _is_truthy(value: Union[str, int, bool]) -> bool:
+def _is_truthy(value: Optional[Union[str, int, bool]]) -> bool:
     value = value.lower() if isinstance(value, str) else value
     return value in ("true", "yes", "1", "on", 1, True)

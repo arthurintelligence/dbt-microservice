@@ -2,7 +2,6 @@ import abc
 from pathlib import Path
 from typing import Any, Dict, Optional, Set
 
-
 __all__ = ["BaseConfigProvider"]
 
 
@@ -33,7 +32,7 @@ class BaseConfigProvider(abc.ABC):
     def get_env_variables(self, verb: Optional[str]) -> Optional[Dict[str, str]]:
         """
         From provider source data, obtains environment variables to be applied
-        when calling dbt {verb} / to be applied globally (when verb is None). 
+        when calling dbt {verb} / to be applied globally (when verb is None).
 
         Args:
             verb (Optional[str], optional):
@@ -104,7 +103,7 @@ class BaseConfigProvider(abc.ABC):
         Args:
             available_verbs (Set[str]):
                 Set of all available (supported) verbs, primarily for validation
-        
+
         Raises:
             ValueError: If verbs listed in the provider source data
                         are not in available_verbs
@@ -142,7 +141,9 @@ class BaseConfigProvider(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_flag_internal_values_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
+    def get_flag_internal_values_apply_global(
+        self, available_verbs: Set[str]
+    ) -> Optional[Set[str]]:
         """
         From provider source data, obtains the set of verbs for which the
         global internal flag values are to be applied.
@@ -162,7 +163,7 @@ class BaseConfigProvider(abc.ABC):
     @abc.abstractmethod
     def get_projects_root_dir(self) -> Optional[Path]:
         """
-        From provider source data, obtains the directory where dbt projects are 
+        From provider source data, obtains the directory where dbt projects are
         stored.
 
         Raises:
@@ -170,7 +171,7 @@ class BaseConfigProvider(abc.ABC):
             NotADirectoryError: If the path is not a valid directory
 
         Returns:
-            Optional[Set[str]]: 
+            Optional[Set[str]]:
                 Path to the projects root directory, if any.
                 Returns None if config point is not configured in provider
                 source data.
@@ -200,7 +201,7 @@ class BaseConfigProvider(abc.ABC):
     @abc.abstractmethod
     def get_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
         """
-        From provider source data, obtains the set of verbs for which the 
+        From provider source data, obtains the set of verbs for which the
         configured global dbt variables values will be applied.
 
         Args:

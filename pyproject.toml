@@ -46,23 +46,45 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.black]
-line-length = 88
+line-length = 100
 target-version = ['py312']
 include = '\.py$'
+exclude = '''
+/(
+    \.git
+    | \.venv
+    | __pycache__
+    | build
+    | dist
+)/
+'''
 
 [tool.isort]
 profile = "black"
-multi_line_output = 3
-include_trailing_comma = true
+force_single_line = false
 force_grid_wrap = 0
-line_length = 88
+include_trailing_comma = true
+line_length = 100
+multi_line_output = 3
 
 [tool.mypy]
 python_version = "3.12"
+check_untyped_defs = true
+disable_error_code = ["import-untyped", "attr-defined"]
+disallow_untyped_defs = true
+ignore_missing_imports = true
 warn_return_any = true
 warn_unused_configs = true
-disallow_untyped_defs = true
-check_untyped_defs = true
+warn_unused_ignore = false
+exclude = '''
+(
+    ^\.|             # Hidden files (starting with .)
+    ^build/|         # Build directory
+    ^dist/|          # Distribution directory
+    ^\.venv/|        # Virtual environment directory
+    ^__pycache__/   # Compiled Python cache files
+)
+'''
 
 [tool.pytest.ini_options]
 pythonpath = "."

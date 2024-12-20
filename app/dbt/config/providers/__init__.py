@@ -2,6 +2,7 @@
 Exports BaseConfigProvider subclasses and a function to get the default
 providers in the expected order.
 """
+
 from typing import List
 
 from .abc import BaseConfigProvider

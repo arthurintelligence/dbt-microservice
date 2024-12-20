@@ -4,29 +4,26 @@ from typing import Any, Dict, Optional, Set
 import yaml
 
 from app.dbt.config.providers.abc import BaseConfigProvider
-from app.dbt.config.jsonschema import DbtFlagsSchema
-
 
 __all__ = ["DefaultsConfigProvider"]
 
 ALLOWLIST_DIRPATH = (Path(__file__).parent / "flag_allowlists").resolve()
 JSONSCHEMA_DIRPATH = (Path(__file__).parent / "../../jsonschema").resolve()
 
+
 class DefaultsConfigProvider(BaseConfigProvider):
     @staticmethod
     def available_verbs() -> Set[str]:
         """Returns default allowed verbs - which are all the available verbs"""
-        all_available_verbs = None
+        all_available_verbs: Set[str] = set()
         for dirname in (ALLOWLIST_DIRPATH, JSONSCHEMA_DIRPATH):
-            dir_available_verbs = set(
-                child.stem[4:] for child in dirname.glob("dbt-*.yml")
-            )
-            if all_available_verbs is None:
+            dir_available_verbs = set(child.stem[4:] for child in dirname.glob("dbt-*.yml"))
+            if len(all_available_verbs) == 0:
                 all_available_verbs = dir_available_verbs
             # intersect the available verbs across all the configuration
             # directories
             all_available_verbs &= dir_available_verbs
-            
+
         return all_available_verbs
 
     def get_allowed_verbs(self, available_verbs: Set[str]) -> Optional[Set[str]]:
@@ -52,14 +49,10 @@ class DefaultsConfigProvider(BaseConfigProvider):
 
     def get_flag_allowlist(self, verb: Optional[str]) -> Optional[Dict[str, bool]]:
         """Returns default flag allowlist for given verb."""
-        filepath = ALLOWLIST_DIRPATH / (
-            "global.yml"
-            if verb is None
-            else f"dbt-{verb}.yml"
-        )
+        filepath = ALLOWLIST_DIRPATH / ("global.yml" if verb is None else f"dbt-{verb}.yml")
         print(filepath)
         with open(filepath, "r", encoding="utf-8") as f:
-            return yaml.load(f, Loader=yaml.SafeLoader)
+            return yaml.load(f, Loader=yaml.SafeLoader)  # type: ignore
 
     def get_flag_allowlist_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
         """
@@ -79,7 +72,9 @@ class DefaultsConfigProvider(BaseConfigProvider):
         """Returns default flag internal values for given verb - which is none"""
         return None
 
-    def get_flag_internal_values_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
+    def get_flag_internal_values_apply_global(
+        self, available_verbs: Set[str]
+    ) -> Optional[Set[str]]:
         """
         Returns verbs for which global internal flag values will be applied when
         calling the API endpoint.

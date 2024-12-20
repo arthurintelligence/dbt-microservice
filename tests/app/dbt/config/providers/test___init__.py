@@ -1,11 +1,13 @@
+# mypy: disable-error-code="no-untyped-def"
 import pytest
 
 from app.dbt.config.providers import (
     DefaultsConfigProvider,
     EnvironmentConfigProvider,
     FileConfigProvider,
-    get_providers
+    get_providers,
 )
+
 
 def describe_get_providers():
     """Tests for get_provider() function"""

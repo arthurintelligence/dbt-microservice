@@ -2,12 +2,14 @@ import configparser
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from convert_case import kebab_case, snake_case
 
 from app.dbt.config.jsonschema import DbtFlagsSchema
+
 from .abc import BaseConfigProvider
+
 
 class BoolParser:
     """Small utility class to parse str to bool"""
@@ -16,7 +18,7 @@ class BoolParser:
     falsies = ("false", "no", "0", "off")
 
     @classmethod
-    def valid_values(cls) -> Tuple[Any]:
+    def valid_values(cls) -> Sequence[str]:
         """
         Returns set of all str values that are accepted as booleans.
 
@@ -53,13 +55,10 @@ class FileConfigProvider(BaseConfigProvider):
     Config provider to retrieve configuration from the .ini file
     specified by the "DBT_CONFIG_FILE" environment variable.
     """
+
     @classmethod
     def _get_err_message_footer(cls, path: Path) -> str:
-        return (
-            "\n"
-            f"File: {path}\n"
-            '(Configured through environment variable "DBT_CONFIG_FILE")'
-        )
+        return "\n" f"File: {path}\n" '(Configured through environment variable "DBT_CONFIG_FILE")'
 
     @classmethod
     def _read_config_file(cls) -> Optional[Tuple[Path, configparser.ConfigParser]]:
@@ -81,10 +80,11 @@ class FileConfigProvider(BaseConfigProvider):
                 Returns None if DBT_CONFIG_FILE environment variable is not set.
 
         """
-        if not os.getenv("DBT_CONFIG_FILE") or not os.getenv("DBT_CONFIG_FILE").strip():
+        ENV_DBT_CONFIG_FILE = os.getenv("DBT_CONFIG_FILE")
+        if ENV_DBT_CONFIG_FILE is None or not ENV_DBT_CONFIG_FILE.strip():
             return None
 
-        path = Path(os.getenv("DBT_CONFIG_FILE").strip())
+        path = Path(ENV_DBT_CONFIG_FILE.strip())
         if not path.exists():
             raise FileNotFoundError(
                 f"{cls.__name__}: {path}\n"
@@ -98,9 +98,9 @@ class FileConfigProvider(BaseConfigProvider):
 
         try:
             config = configparser.ConfigParser()
-            config.read(os.getenv("DBT_CONFIG_FILE"), encoding="utf-8")
+            config.read(ENV_DBT_CONFIG_FILE, encoding="utf-8")
             if len(config.sections()) == 0:
-                exc = configparser.ParsingError(path)
+                exc = configparser.ParsingError(str(path))
                 exc.message = (
                     f"{cls.__name__}: File is either empty or does not contains section headers."
                     + cls._get_err_message_footer(path)
@@ -115,15 +115,9 @@ class FileConfigProvider(BaseConfigProvider):
 
         return path, config
 
-
-    def __init__(self):
+    def __init__(self) -> None:
         config_info = FileConfigProvider._read_config_file()
-        self.path, self.config = (
-            (None, None)
-            if config_info is None
-            else config_info
-        )
-            
+        self.path, self.config = (None, None) if config_info is None else config_info
 
     def get_allowed_verbs(self, available_verbs: Set[str]) -> Optional[Set[str]]:
         """
@@ -146,7 +140,7 @@ class FileConfigProvider(BaseConfigProvider):
         Extracts environment variables values from the `[dbt.env_vars]`
         section for global env vars, and the `[dbt.{verb}.env_vars]`
         section for verb-specific env vars.
-        If the `[dbt].rename_env` option is set to a truthy value, will rename 
+        If the `[dbt].rename_env` option is set to a truthy value, will rename
         `DBT_ENV_{VARIABLE}` vars to `DBT_{VARIABLE}` to match
         dbt environment variable naming conventions in dbt Cloud, which support
         `DBT_`, `DBT_ENV_SECRET_`, and `DBT_ENV_CUSTOM_ENV_` prefixes.
@@ -155,12 +149,12 @@ class FileConfigProvider(BaseConfigProvider):
             verb (Optional[str], optional):
                 dbt verb to get the flags for.
                 If verb=None, returns the internal values for global flags.
-            
+
         Raises:
             ExceptionGroup:
                 If one or more options in the `[dbt{.verb?}.env_vars]` does not
                 match the expected format `^DBT_([A-Z0-9]+_+)+([A-Z0-9]+)$`
-                (constant case starting with `DBT_`), raises an 
+                (constant case starting with `DBT_`), raises an
                 ExceptionGroup[KeyError] with one KeyError per offending option.
 
         Returns:
@@ -168,44 +162,34 @@ class FileConfigProvider(BaseConfigProvider):
                 Dict[env_var, value] for the given verb, from ini.
                 Values returned are not parsed.
         """
+        if self.config is None:
+            return None
+
         should_rename = False
         try:
-            should_rename = (
-                self.config.has_option("dbt", "rename_env")
-                and BoolParser.parse(
-                    value=self.config.get("dbt", "rename_env"),
-                    default=False
-                )
+            should_rename = self.config.has_option("dbt", "rename_env") and BoolParser.parse(
+                value=self.config.get("dbt", "rename_env"), default=False
             )
         except ValueError as exc:
             raise ValueError(
-                f'{type(self).__name__}: Option `[dbt].rename_env`: '
+                f"{type(self).__name__}: Option `[dbt].rename_env`: "
                 "Value could not be coerced to a boolean value. \n"
-                f"Valid values: {BoolParser.valid_values()}."
-                + self._err_message_footer
+                f"Valid values: {BoolParser.valid_values()}." + self._err_message_footer
             ) from exc
 
-        def is_env_var(key):
-            return re.match(
-                r"^DBT_([A-Z0-9]+_+)+([A-Z0-9]+)$",
-                key,
-                flags=re.IGNORECASE
-            )
+        def is_env_var(key: str) -> bool:
+            return bool(re.match(r"^DBT_([A-Z0-9]+_+)+([A-Z0-9]+)$", key, flags=re.IGNORECASE))
 
-        def is_secret_var(key):
+        def is_secret_var(key: str) -> bool:
             return key.startswith("DBT_ENV_SECRET_")
 
-        def is_custom_env_var(key):
+        def is_custom_env_var(key: str) -> bool:
             return key.startswith("DBT_ENV_CUSTOM_ENV_")
 
-        def is_base_var(key):
-            return (
-                is_env_var(key)
-                and not is_secret_var(key)
-                and not is_custom_env_var(key)
-            )
+        def is_base_var(key: str) -> bool:
+            return is_env_var(key) and not is_secret_var(key) and not is_custom_env_var(key)
 
-        def rename(key):
+        def rename(key: str) -> str:
             if is_base_var(key) and key.startswith("DBT_ENV_"):
                 return f"DBT_{key[8:]}"
             return key
@@ -230,9 +214,8 @@ class FileConfigProvider(BaseConfigProvider):
             raise ExceptionGroup(
                 f"{type(self).__name__}: Section `[{section}]`: Invalid environment variable names found.\n"
                 "Environment variables should be in snake case or constant case and start "
-                "with `DBT_`."
-                + self._err_message_footer,
-                [KeyError(option) for option in errors]
+                "with `DBT_`." + self._err_message_footer,
+                [KeyError(option) for option in errors],
             )
 
         if len(env_vars) == 0:
@@ -240,9 +223,7 @@ class FileConfigProvider(BaseConfigProvider):
 
         return env_vars
 
-    def get_env_variables_apply_global(
-        self, available_verbs: Set[str]
-    ) -> Optional[Set[str]]:
+    def get_env_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
         """
         Extracts the set of verbs for which the global environment variables
         are to be applied, from the `[dbt].apply_global_env_vars` option.
@@ -257,9 +238,7 @@ class FileConfigProvider(BaseConfigProvider):
                 Set of verbs to apply the global internal flag values to, if any.
                 Returns None if the option is not set.
         """
-        return self._get_verbs_from_option(
-            "dbt", "apply_global_env_vars", available_verbs
-        )
+        return self._get_verbs_from_option("dbt", "apply_global_env_vars", available_verbs)
 
     def get_flag_allowlist(self, verb: Optional[str]) -> Optional[Dict[str, bool]]:
         """
@@ -292,28 +271,21 @@ class FileConfigProvider(BaseConfigProvider):
                 raise configparser.ParsingError(
                     f"{type(self).__name__}: Option `[{section_name}].{flag}`: Value "
                     "could not be coerced to a boolean value. \n"
-                    f"Valid values: {BoolParser.valid_values()}."
-                    + self._err_message_footer
+                    f"Valid values: {BoolParser.valid_values()}." + self._err_message_footer
                 ) from exc
 
         DbtFlagsSchema.validate_flag_availability(
             verb=verb,
-            message=(
-                f"Section `[{section_name}]`: Unrecognized flags"
-                + self._err_message_footer
-            ),
+            message=(f"Section `[{section_name}]`: Unrecognized flags" + self._err_message_footer),
             flag_message=lambda _, flag, is_not_recognized_str: (
-                f'Option `[{section_name}].{flag}`: --{kebab_case(flag)}'
-                + is_not_recognized_str
+                f"Option `[{section_name}].{flag}`: --{kebab_case(flag)}" + is_not_recognized_str
             ),
             flags=allowlist,
         )
 
         return allowlist
 
-    def get_flag_allowlist_apply_global(
-        self, available_verbs: Set[str]
-    ) -> Optional[Set[str]]:
+    def get_flag_allowlist_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
         """
         Extracts the set of verbs for which the configured global dbt allowlist
         will be merged to their respective verb allowlist, from the
@@ -329,9 +301,7 @@ class FileConfigProvider(BaseConfigProvider):
                 Set of verbs to apply the global allowlist to, if any.
                 Returns None if the option is not set.
         """
-        return self._get_verbs_from_option(
-            "dbt", "apply_global_allowlist", available_verbs
-        )
+        return self._get_verbs_from_option("dbt", "apply_global_allowlist", available_verbs)
 
     def get_flag_internal_values(self, verb: Optional[str]) -> Optional[Dict[str, Any]]:
         """
@@ -351,9 +321,7 @@ class FileConfigProvider(BaseConfigProvider):
                 Dict[flag, value] for the given verb, from ini.
                 Values returned are not parsed.
         """
-        section_name = (
-            "dbt.flags.values" if verb is None else f"dbt.{verb}.flags.values"
-        )
+        section_name = "dbt.flags.values" if verb is None else f"dbt.{verb}.flags.values"
         section = self._read_ini_section(section_name)
         if section is None or len(section) == 0:
             return None
@@ -363,12 +331,10 @@ class FileConfigProvider(BaseConfigProvider):
             verb=verb,
             message=(
                 f"{type(self).__name__}: Section `[{section_name}]`: "
-                "Unrecognized flags"
-                + self._err_message_footer
+                "Unrecognized flags" + self._err_message_footer
             ),
             flag_message=lambda _, flag, is_not_recognized_str: (
-                f'Option `[{section_name}].{flag}`: --{kebab_case(flag)}'
-                + is_not_recognized_str
+                f"Option `[{section_name}].{flag}`: --{kebab_case(flag)}" + is_not_recognized_str
             ),
             flags=flags,
         )
@@ -410,21 +376,19 @@ class FileConfigProvider(BaseConfigProvider):
                 Path to the projects root directory, if any.
                 Returns None if not configured.
         """
-        if not self.config.has_option("dbt", "projects_root_dir"):
+        if self.config is None or not self.config.has_option("dbt", "projects_root_dir"):
             return None
         # prd: project root dir
         prd = Path(self.config.get("dbt", "projects_root_dir"))
         if not prd.exists():
             raise FileNotFoundError(
                 f"{type(self).__name__}: Option `[dbt].projects_root_dir`: "
-                f'File "{prd}" cannot be found.'
-                + self._err_message_footer
+                f'File "{prd}" cannot be found.' + self._err_message_footer
             )
         if not prd.is_dir():
             raise NotADirectoryError(
                 f"{type(self).__name__}: Option `[dbt].projects_root_dir`: "
-                f'Path "{prd}" does not point to a directory.'
-                + self._err_message_footer
+                f'Path "{prd}" does not point to a directory.' + self._err_message_footer
             )
 
         return prd
@@ -454,9 +418,7 @@ class FileConfigProvider(BaseConfigProvider):
 
         return {snake_case(key): value for key, value in section.items()}
 
-    def get_variables_apply_global(
-        self, available_verbs: Set[str]
-    ) -> Optional[Set[str]]:
+    def get_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
         """
         Extracts the set of verbs for which the global environment variables
         are to be applied, from the `[dbt].apply_global_vars` option.
@@ -497,7 +459,7 @@ class FileConfigProvider(BaseConfigProvider):
                 Set of verbs in (section, option), if set.
                 Returns None if the option is not set.
         """
-        if not self.config.has_option(section, option):
+        if self.config is None or not self.config.has_option(section, option):
             return None
 
         # Verify that the value matches expected format
@@ -518,13 +480,14 @@ class FileConfigProvider(BaseConfigProvider):
             unsupported_verbs: List[str] = sorted(value - available_verbs)
             raise ValueError(
                 f"{type(self).__name__}: Option `[{section}].{option}`: Verbs {unsupported_verbs} "
-                "are not supported."
-                + self._err_message_footer
+                "are not supported." + self._err_message_footer
             )
         return value
 
     @property
-    def _err_message_footer(self):
+    def _err_message_footer(self) -> str:
+        if self.path is None:
+            return ""
         return type(self)._get_err_message_footer(self.path)
 
     def _read_ini_section(self, name: str) -> Optional[Dict[str, Any]]:

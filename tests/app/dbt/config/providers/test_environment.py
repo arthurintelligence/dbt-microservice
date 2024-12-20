@@ -1,8 +1,9 @@
 # pylint: disable=unused-variable,assignment-from-none,invalid-name
+# mypy: disable-error-code="no-untyped-def"
 import re
 from pathlib import Path
-from unittest.mock import patch
 from typing import Any, Dict, List, Optional
+from unittest.mock import patch
 
 import pytest
 
@@ -58,9 +59,11 @@ def describe_EnvironmentConfigProvider():
                 "run;test",  # semicolon-separated
                 "run test",  # space-separated
                 "run|test",  # pipe-separated
-            ]
+            ],
         )
-        def test_raises_when_variable_value_has_invalid_format(allowed_verb_str: str, mock_env: MockEnv):
+        def test_raises_when_variable_value_has_invalid_format(
+            allowed_verb_str: str, mock_env: MockEnv
+        ):
             """should raise ValueError when DBT_ALLOWED_VERBS format is invalid"""
             # arrange
             provider = EnvironmentConfigProvider()
@@ -68,7 +71,12 @@ def describe_EnvironmentConfigProvider():
             mock_env.setenv("DBT_ALLOWED_VERBS", allowed_verb_str)
 
             # act & assert
-            with pytest.raises(ValueError, match=re.escape("EnvironmentConfigProvider: DBT_ALLOWED_VERBS: Should be in the form 'verb(,verb)+'")):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    "EnvironmentConfigProvider: DBT_ALLOWED_VERBS: Should be in the form 'verb(,verb)+'"
+                ),
+            ):
                 provider.get_allowed_verbs(available_verbs)
 
         @pytest.mark.parametrize(
@@ -96,9 +104,7 @@ def describe_EnvironmentConfigProvider():
             ],
         )
         def test_raises_when_variable_value_contains_unsupported_verbs(
-            allowed_verb_str: str,
-            unsupported_verbs: List[str],
-            mock_env: MockEnv
+            allowed_verb_str: str, unsupported_verbs: List[str], mock_env: MockEnv
         ):
             """should raise ValueError when DBT_ALLOWED_VERBS contains unsupported verb(s)"""
             # arrange
@@ -109,7 +115,9 @@ def describe_EnvironmentConfigProvider():
             # act & assert
             with pytest.raises(
                 ValueError,
-                match=re.escape(f"EnvironmentConfigProvider: DBT_ALLOWED_VERBS: Verbs {unsupported_verbs} are not supported")
+                match=re.escape(
+                    f"EnvironmentConfigProvider: DBT_ALLOWED_VERBS: Verbs {unsupported_verbs} are not supported"
+                ),
             ):
                 provider.get_allowed_verbs(available_verbs)
 
@@ -117,10 +125,7 @@ def describe_EnvironmentConfigProvider():
 
         @pytest.mark.parametrize(
             "verb,expected",
-            [
-                (None, {"global_1": True, "global_2": True}),
-                ("run", {"run_1": True, "run_2": True})
-            ]
+            [(None, {"global_1": True, "global_2": True}), ("run", {"run_1": True, "run_2": True})],
         )
         def test_enable_variable(verb: Optional[str], expected: Dict[str, bool], mock_env: MockEnv):
             """should return enabled flags from environment variables"""
@@ -140,10 +145,12 @@ def describe_EnvironmentConfigProvider():
             "verb,expected",
             [
                 (None, {"global_1": False, "global_2": False}),
-                ("run", {"run_1": False, "run_2": False})
-            ]
+                ("run", {"run_1": False, "run_2": False}),
+            ],
         )
-        def test_disable_variable(verb: Optional[str], expected: Dict[str, bool], mock_env: MockEnv):
+        def test_disable_variable(
+            verb: Optional[str], expected: Dict[str, bool], mock_env: MockEnv
+        ):
             """should return disabled flags from environment variables"""
             # arrange
             provider = EnvironmentConfigProvider()
@@ -164,7 +171,7 @@ def describe_EnvironmentConfigProvider():
                 "global-1 global-2",  # test non csv
                 "global-1;global-2",  # test non csv
                 "global_1,global_2",  # test snake case
-            ]
+            ],
         )
         def test_raises_when_value_has_invalid_format(value: str, mock_env: MockEnv):
             """should raise a ValueError when the value is not formatted as comma-separated, kebab-case flags"""
@@ -228,7 +235,12 @@ def describe_EnvironmentConfigProvider():
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match=re.escape(f"EnvironmentConfigProvider: {env_var_name}: Should be in the form 'verb(,verb)+'")):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"EnvironmentConfigProvider: {env_var_name}: Should be in the form 'verb(,verb)+'"
+                ),
+            ):
                 provider.get_flag_allowlist_apply_global(available_verbs)
 
         def test_variable_with_unsupported_verbs(mock_env: MockEnv):
@@ -240,33 +252,32 @@ def describe_EnvironmentConfigProvider():
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match=re.escape(f"EnvironmentConfigProvider: {env_var_name}: Verbs ['verb'] are not supported")):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"EnvironmentConfigProvider: {env_var_name}: Verbs ['verb'] are not supported"
+                ),
+            ):
                 provider.get_flag_allowlist_apply_global(available_verbs)
 
     def describe_get_flag_internal_values():
         @pytest.mark.parametrize(
             "verb,expected",
             [
-                (
-                    None,
-                    {
-                        "var_1": "global-1",
-                        "var_2": "global-2"
-                    }
-                ),
+                (None, {"var_1": "global-1", "var_2": "global-2"}),
                 (
                     "run",
                     {
                         "run_var_1": "run-1",
-                    }
+                    },
                 ),
                 (
                     "test",
                     {
                         "test_var_1": "test-1",
-                    }
-                )
-            ]
+                    },
+                ),
+            ],
         )
         def test_base_case(verb: Optional[str], expected: Dict[str, str], mock_env: MockEnv):
             """should return internal flag values from environment for given verb"""
@@ -316,62 +327,72 @@ def describe_EnvironmentConfigProvider():
                 # case: scope global, single unrecognized variable
                 (
                     None,
-                    {
-                        "DBT_FLAG_VAR_1": "global-1"
-                    },
+                    {"DBT_FLAG_VAR_1": "global-1"},
                     {
                         "message": "EnvironmentConfigProvider: DBT_FLAG_*: Unrecognized flags (1 sub-exception)",
                         "exceptions": [
-                            (KeyError, 'EnvironmentConfigProvider: DBT_FLAG_VAR_1: "--var-1" is not recognized as a valid global dbt flag.')
-                        ]
-                    }
+                            (
+                                KeyError,
+                                'EnvironmentConfigProvider: DBT_FLAG_VAR_1: "--var-1" is not recognized as a valid global dbt flag.',
+                            )
+                        ],
+                    },
                 ),
                 # case: scope global, multiple unrecognized variables
                 (
                     None,
-                    {
-                        "DBT_FLAG_VAR_1": "global-1",
-                        "DBT_FLAG_VAR_2": "global-2"
-                    },
+                    {"DBT_FLAG_VAR_1": "global-1", "DBT_FLAG_VAR_2": "global-2"},
                     {
                         "message": "EnvironmentConfigProvider: DBT_FLAG_*: Unrecognized flags (2 sub-exceptions)",
                         "exceptions": [
-                            (KeyError, 'EnvironmentConfigProvider: DBT_FLAG_VAR_1: "--var-1" is not recognized as a valid global dbt flag.'),
-                            (KeyError, 'EnvironmentConfigProvider: DBT_FLAG_VAR_2: "--var-2" is not recognized as a valid global dbt flag.')
-                        ]
-                    }
+                            (
+                                KeyError,
+                                'EnvironmentConfigProvider: DBT_FLAG_VAR_1: "--var-1" is not recognized as a valid global dbt flag.',
+                            ),
+                            (
+                                KeyError,
+                                'EnvironmentConfigProvider: DBT_FLAG_VAR_2: "--var-2" is not recognized as a valid global dbt flag.',
+                            ),
+                        ],
+                    },
                 ),
                 # case: scope verb=run, single unrecognized variable
                 (
                     "run",
-                    {
-                        "DBT_RUN_FLAG_VAR_1": "run-1"
-                    },
+                    {"DBT_RUN_FLAG_VAR_1": "run-1"},
                     {
                         "message": "EnvironmentConfigProvider: DBT_RUN_FLAG_*: Unrecognized flags (1 sub-exception)",
                         "exceptions": [
-                            (KeyError, 'EnvironmentConfigProvider: DBT_RUN_FLAG_VAR_1: "--var-1" is not recognized as a valid dbt run flag.')
-                        ]
-                    }
+                            (
+                                KeyError,
+                                'EnvironmentConfigProvider: DBT_RUN_FLAG_VAR_1: "--var-1" is not recognized as a valid dbt run flag.',
+                            )
+                        ],
+                    },
                 ),
                 # case: scope verb=run, multiple unrecognized variables
                 (
                     "run",
-                    {
-                        "DBT_RUN_FLAG_VAR_1": "run-1",
-                        "DBT_RUN_FLAG_VAR_2": "run-2"
-                    },
+                    {"DBT_RUN_FLAG_VAR_1": "run-1", "DBT_RUN_FLAG_VAR_2": "run-2"},
                     {
                         "message": "EnvironmentConfigProvider: DBT_RUN_FLAG_*: Unrecognized flags (2 sub-exceptions)",
                         "exceptions": [
-                            (KeyError, 'EnvironmentConfigProvider: DBT_RUN_FLAG_VAR_1: "--var-1" is not recognized as a valid dbt run flag.'),
-                            (KeyError, 'EnvironmentConfigProvider: DBT_RUN_FLAG_VAR_2: "--var-2" is not recognized as a valid dbt run flag.')
-                        ]
-                    }
+                            (
+                                KeyError,
+                                'EnvironmentConfigProvider: DBT_RUN_FLAG_VAR_1: "--var-1" is not recognized as a valid dbt run flag.',
+                            ),
+                            (
+                                KeyError,
+                                'EnvironmentConfigProvider: DBT_RUN_FLAG_VAR_2: "--var-2" is not recognized as a valid dbt run flag.',
+                            ),
+                        ],
+                    },
                 ),
-            ]
+            ],
         )
-        def test_raises_for_invalid_flags(verb: Optional[str], env: Dict[str, str], error: Dict[str, Any], mock_env: MockEnv):
+        def test_raises_for_invalid_flags(
+            verb: Optional[str], env: Dict[str, str], error: Dict[str, Any], mock_env: MockEnv
+        ):
             """should raise an ExceptionGroup comprised of one KeyError per invalid flag, with matching messages."""
             # arrange
             provider = EnvironmentConfigProvider()
@@ -379,15 +400,12 @@ def describe_EnvironmentConfigProvider():
                 mock_env.setenv(key, value)
 
             # act & assert
-            with pytest.raises(ExceptionGroup, match=re.escape(error['message'])) as exc_info:
+            with pytest.raises(ExceptionGroup, match=re.escape(error["message"])) as exc_info:
                 provider.get_flag_internal_values(verb)
 
             # assert
             for idx, (ExcType, message) in enumerate(error["exceptions"]):
-                exc_info.group_contains(
-                    expected_exception=ExcType,
-                    match=re.escape(message)
-                )
+                exc_info.group_contains(expected_exception=ExcType, match=re.escape(message))
 
     def describe_get_flag_internal_values_apply_global():
         def test_returns_none_when_variable_not_set():
@@ -426,7 +444,7 @@ def describe_EnvironmentConfigProvider():
             result = provider.get_flag_internal_values_apply_global(available_verbs)
 
             # assert
-            assert result == {"run","test"}
+            assert result == {"run", "test"}
 
         def test_variable_with_invalid_format(mock_env: MockEnv):
             """should raise ValueError when DBT_APPLY_GLOBAL_INTERNAL_FLAG_VALUES format is invalid"""
@@ -437,7 +455,12 @@ def describe_EnvironmentConfigProvider():
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match=re.escape(f"EnvironmentConfigProvider: {env_var_name}: Should be in the form 'verb(,verb)+'")):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"EnvironmentConfigProvider: {env_var_name}: Should be in the form 'verb(,verb)+'"
+                ),
+            ):
                 provider.get_flag_internal_values_apply_global(available_verbs)
 
         def test_variable_with_unsupported_verbs(mock_env: MockEnv):
@@ -449,7 +472,12 @@ def describe_EnvironmentConfigProvider():
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match=re.escape(f"EnvironmentConfigProvider: {env_var_name}: Verbs ['verb'] are not supported")):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"EnvironmentConfigProvider: {env_var_name}: Verbs ['verb'] are not supported"
+                ),
+            ):
                 provider.get_flag_internal_values_apply_global(available_verbs)
 
     def describe_get_env_variables():
@@ -483,30 +511,26 @@ def describe_EnvironmentConfigProvider():
             [
                 ({"DBT_ENV_SECRET_VAR_1": "global-1"}, {"DBT_ENV_SECRET_VAR_1": "global-1"}),
                 (
-                    {
-                        "DBT_ENV_SECRET_VAR_1": "global-1",
-                        "DBT_ENV_CUSTOM_ENV_VAR_1": "global-2"
-                    },
-                    {
-                        "DBT_ENV_SECRET_VAR_1": "global-1",
-                        "DBT_ENV_CUSTOM_ENV_VAR_1": "global-2"
-                    }
+                    {"DBT_ENV_SECRET_VAR_1": "global-1", "DBT_ENV_CUSTOM_ENV_VAR_1": "global-2"},
+                    {"DBT_ENV_SECRET_VAR_1": "global-1", "DBT_ENV_CUSTOM_ENV_VAR_1": "global-2"},
                 ),
                 (
                     {
                         "DBT_ENV_VAR_1": "global-1",
                         "DBT_ENV_SECRET_VAR_2": "global-2",
-                        "DBT_ENV_CUSTOM_ENV_VAR_3": "global-3"
+                        "DBT_ENV_CUSTOM_ENV_VAR_3": "global-3",
                     },
                     {
                         "DBT_ENV_VAR_1": "global-1",
                         "DBT_ENV_SECRET_VAR_2": "global-2",
-                        "DBT_ENV_CUSTOM_ENV_VAR_3": "global-3"
+                        "DBT_ENV_CUSTOM_ENV_VAR_3": "global-3",
                     },
                 ),
-            ]
+            ],
         )
-        def test_global_variables_set(env: Dict[str, str], expected: Dict[str, str], mock_env: MockEnv):
+        def test_global_variables_set(
+            env: Dict[str, str], expected: Dict[str, str], mock_env: MockEnv
+        ):
             """should return dict of environment variables if one or more DBT_ENV_* environment variables are set and verb is None"""
             # arrange
             provider = EnvironmentConfigProvider()
@@ -524,30 +548,26 @@ def describe_EnvironmentConfigProvider():
             [
                 ({"DBT_RUN_ENV_SECRET_VAR_1": "run-1"}, {"DBT_ENV_SECRET_VAR_1": "run-1"}),
                 (
-                    {
-                        "DBT_RUN_ENV_SECRET_VAR_1": "run-1",
-                        "DBT_RUN_ENV_CUSTOM_ENV_VAR_1": "run-2"
-                    },
-                    {
-                        "DBT_ENV_SECRET_VAR_1": "run-1",
-                        "DBT_ENV_CUSTOM_ENV_VAR_1": "run-2"
-                    }
+                    {"DBT_RUN_ENV_SECRET_VAR_1": "run-1", "DBT_RUN_ENV_CUSTOM_ENV_VAR_1": "run-2"},
+                    {"DBT_ENV_SECRET_VAR_1": "run-1", "DBT_ENV_CUSTOM_ENV_VAR_1": "run-2"},
                 ),
                 (
                     {
                         "DBT_RUN_ENV_VAR_1": "run-1",
                         "DBT_RUN_ENV_SECRET_VAR_2": "run-2",
-                        "DBT_RUN_ENV_CUSTOM_ENV_VAR_3": "run-3"
+                        "DBT_RUN_ENV_CUSTOM_ENV_VAR_3": "run-3",
                     },
                     {
                         "DBT_ENV_VAR_1": "run-1",
                         "DBT_ENV_SECRET_VAR_2": "run-2",
-                        "DBT_ENV_CUSTOM_ENV_VAR_3": "run-3"
+                        "DBT_ENV_CUSTOM_ENV_VAR_3": "run-3",
                     },
                 ),
-            ]
+            ],
         )
-        def test_verb_variables_set(env: Dict[str, str], expected: Dict[str, str], mock_env: MockEnv):
+        def test_verb_variables_set(
+            env: Dict[str, str], expected: Dict[str, str], mock_env: MockEnv
+        ):
             """should return dict of environment variables when one or more DBT_{verb}_ENV_* environment variables are set and verb is {verb}"""
             # arrange
             provider = EnvironmentConfigProvider()
@@ -587,17 +607,19 @@ def describe_EnvironmentConfigProvider():
         @pytest.mark.parametrize(
             "verb,env,expected",
             [
-                (None, { "DBT_RENAME_ENV": "on" }, { "DBT_VAR_1": "global-1" }),
-                (None, { "DBT_RENAME_ENV": "yes" }, { "DBT_VAR_1": "global-1" }),
-                (None, { "DBT_RENAME_ENV": "true" }, { "DBT_VAR_1": "global-1" }),
-                (None, { "DBT_RENAME_ENV": "1" }, { "DBT_VAR_1": "global-1" }),
-                ("run", { "DBT_RENAME_ENV": "on" }, { "DBT_VAR_1": "run-1" }),
-                ("run", { "DBT_RENAME_ENV": "yes" }, { "DBT_VAR_1": "run-1" }),
-                ("run", { "DBT_RENAME_ENV": "true" }, { "DBT_VAR_1": "run-1" }),
-                ("run", { "DBT_RENAME_ENV": "1" }, { "DBT_VAR_1": "run-1" }),
-            ]
+                (None, {"DBT_RENAME_ENV": "on"}, {"DBT_VAR_1": "global-1"}),
+                (None, {"DBT_RENAME_ENV": "yes"}, {"DBT_VAR_1": "global-1"}),
+                (None, {"DBT_RENAME_ENV": "true"}, {"DBT_VAR_1": "global-1"}),
+                (None, {"DBT_RENAME_ENV": "1"}, {"DBT_VAR_1": "global-1"}),
+                ("run", {"DBT_RENAME_ENV": "on"}, {"DBT_VAR_1": "run-1"}),
+                ("run", {"DBT_RENAME_ENV": "yes"}, {"DBT_VAR_1": "run-1"}),
+                ("run", {"DBT_RENAME_ENV": "true"}, {"DBT_VAR_1": "run-1"}),
+                ("run", {"DBT_RENAME_ENV": "1"}, {"DBT_VAR_1": "run-1"}),
+            ],
         )
-        def test_renames_variables_when_truthy(verb: Optional[str], env: Dict[str, str], expected: Dict[str, str], mock_env: MockEnv):
+        def test_renames_variables_when_truthy(
+            verb: Optional[str], env: Dict[str, str], expected: Dict[str, str], mock_env: MockEnv
+        ):
             """should rename environment variables when DBT_RENAME_ENV is truthy"""
             # arrange
             provider = EnvironmentConfigProvider()
@@ -615,17 +637,19 @@ def describe_EnvironmentConfigProvider():
         @pytest.mark.parametrize(
             "verb,env,expected",
             [
-                (None, { "DBT_RENAME_ENV": "off" }, { "DBT_ENV_VAR_1": "global-1" }),
-                (None, { "DBT_RENAME_ENV": "no" }, { "DBT_ENV_VAR_1": "global-1" }),
-                (None, { "DBT_RENAME_ENV": "false" }, { "DBT_ENV_VAR_1": "global-1" }),
-                (None, { "DBT_RENAME_ENV": "0" }, { "DBT_ENV_VAR_1": "global-1" }),
-                ("run", { "DBT_RENAME_ENV": "off" }, { "DBT_ENV_VAR_1": "run-1" }),
-                ("run", { "DBT_RENAME_ENV": "no" }, { "DBT_ENV_VAR_1": "run-1" }),
-                ("run", { "DBT_RENAME_ENV": "false" }, { "DBT_ENV_VAR_1": "run-1" }),
-                ("run", { "DBT_RENAME_ENV": "0" }, { "DBT_ENV_VAR_1": "run-1" }),
-            ]
+                (None, {"DBT_RENAME_ENV": "off"}, {"DBT_ENV_VAR_1": "global-1"}),
+                (None, {"DBT_RENAME_ENV": "no"}, {"DBT_ENV_VAR_1": "global-1"}),
+                (None, {"DBT_RENAME_ENV": "false"}, {"DBT_ENV_VAR_1": "global-1"}),
+                (None, {"DBT_RENAME_ENV": "0"}, {"DBT_ENV_VAR_1": "global-1"}),
+                ("run", {"DBT_RENAME_ENV": "off"}, {"DBT_ENV_VAR_1": "run-1"}),
+                ("run", {"DBT_RENAME_ENV": "no"}, {"DBT_ENV_VAR_1": "run-1"}),
+                ("run", {"DBT_RENAME_ENV": "false"}, {"DBT_ENV_VAR_1": "run-1"}),
+                ("run", {"DBT_RENAME_ENV": "0"}, {"DBT_ENV_VAR_1": "run-1"}),
+            ],
         )
-        def test_renames_variables_when_falsy(verb: Optional[str], env: Dict[str, str], expected: Dict[str, str], mock_env: MockEnv):
+        def test_renames_variables_when_falsy(
+            verb: Optional[str], env: Dict[str, str], expected: Dict[str, str], mock_env: MockEnv
+        ):
             """should not rename environment variables when DBT_RENAME_ENV is falsy"""
             # arrange
             provider = EnvironmentConfigProvider()
@@ -677,7 +701,7 @@ def describe_EnvironmentConfigProvider():
             result = provider.get_env_variables_apply_global(available_verbs)
 
             # assert
-            assert result == {"run","test"}
+            assert result == {"run", "test"}
 
         def test_variable_with_invalid_format(mock_env: MockEnv):
             """should raise ValueError when DBT_APPLY_GLOBAL_ENV_VARS format is invalid"""
@@ -688,7 +712,12 @@ def describe_EnvironmentConfigProvider():
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match=re.escape(f"EnvironmentConfigProvider: {env_var_name}: Should be in the form 'verb(,verb)+'")):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"EnvironmentConfigProvider: {env_var_name}: Should be in the form 'verb(,verb)+'"
+                ),
+            ):
                 provider.get_env_variables_apply_global(available_verbs)
 
         def test_variable_with_unsupported_verbs(mock_env: MockEnv):
@@ -700,7 +729,12 @@ def describe_EnvironmentConfigProvider():
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match=re.escape(f"EnvironmentConfigProvider: {env_var_name}: Verbs ['verb'] are not supported")):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"EnvironmentConfigProvider: {env_var_name}: Verbs ['verb'] are not supported"
+                ),
+            ):
                 provider.get_env_variables_apply_global(available_verbs)
 
     def describe_get_projects_root_dir():
@@ -744,12 +778,22 @@ def describe_EnvironmentConfigProvider():
             "verb,env,expected",
             [
                 (None, {"DBT_VAR_VAR_1": "global-1"}, {"var_1": "global-1"}),
-                (None, {"DBT_VAR_VAR_1": "global-1", "DBT_VAR_VAR_2": "global-2"}, {"var_1": "global-1", "var_2": "global-2"}),
+                (
+                    None,
+                    {"DBT_VAR_VAR_1": "global-1", "DBT_VAR_VAR_2": "global-2"},
+                    {"var_1": "global-1", "var_2": "global-2"},
+                ),
                 ("run", {"DBT_RUN_VAR_VAR_1": "run-1"}, {"var_1": "run-1"}),
-                ("run", {"DBT_RUN_VAR_VAR_1": "run-1", "DBT_RUN_VAR_VAR_2": "run-2"}, {"var_1": "run-1", "var_2": "run-2"})
-            ]
+                (
+                    "run",
+                    {"DBT_RUN_VAR_VAR_1": "run-1", "DBT_RUN_VAR_VAR_2": "run-2"},
+                    {"var_1": "run-1", "var_2": "run-2"},
+                ),
+            ],
         )
-        def test_returns_variables_snake_case_when_set(verb: Optional[str], env: Dict[str, str], expected:Dict[str, str], mock_env: MockEnv):
+        def test_returns_variables_snake_case_when_set(
+            verb: Optional[str], env: Dict[str, str], expected: Dict[str, str], mock_env: MockEnv
+        ):
             """should return variables as a dict with keys in snake_case when one or more DBT_{verb}_VAR_* variables are set"""
             # arrange
             provider = EnvironmentConfigProvider()
@@ -799,7 +843,7 @@ def describe_EnvironmentConfigProvider():
             result = provider.get_variables_apply_global(available_verbs)
 
             # assert
-            assert result == {"run","test"}
+            assert result == {"run", "test"}
 
         def test_variable_with_invalid_format(mock_env: MockEnv):
             """should raise ValueError when DBT_APPLY_GLOBAL_VARS format is invalid"""
@@ -810,7 +854,12 @@ def describe_EnvironmentConfigProvider():
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match=re.escape(f"EnvironmentConfigProvider: {env_var_name}: Should be in the form 'verb(,verb)+'")):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"EnvironmentConfigProvider: {env_var_name}: Should be in the form 'verb(,verb)+'"
+                ),
+            ):
                 provider.get_variables_apply_global(available_verbs)
 
         def test_variable_with_unsupported_verbs(mock_env: MockEnv):
@@ -822,5 +871,10 @@ def describe_EnvironmentConfigProvider():
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match=re.escape(f"EnvironmentConfigProvider: {env_var_name}: Verbs ['verb'] are not supported")):
+            with pytest.raises(
+                ValueError,
+                match=re.escape(
+                    f"EnvironmentConfigProvider: {env_var_name}: Verbs ['verb'] are not supported"
+                ),
+            ):
                 provider.get_variables_apply_global(available_verbs)

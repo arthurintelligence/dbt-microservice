@@ -1,4 +1,5 @@
 # pylint: disable=unused-variable,assignment-from-none,invalid-name
+# mypy: disable-error-code="no-untyped-def"
 from pathlib import Path
 from typing import Optional
 
@@ -7,7 +8,8 @@ import yaml
 
 from app.dbt.config.providers.defaults import DefaultsConfigProvider
 
-ROOT_DIRPATH = (Path(__file__).parent / '../../../../../../').resolve()
+ROOT_DIRPATH = (Path(__file__).parent / "../../../../../../").resolve()
+
 
 def describe_DefaultsConfigProvider():
     """Tests for DefaultsConfigProvider class methods"""
@@ -42,7 +44,6 @@ def describe_DefaultsConfigProvider():
             # assert
             assert result == available_verbs
 
-
     def describe_get_flag_allowlist():
         """Tests for DefaultsConfigProvider.get_flag_allowlist"""
 
@@ -55,21 +56,13 @@ def describe_DefaultsConfigProvider():
             result = provider.get_flag_allowlist(verb=None)
 
             # assert
-            allowlist_relpath = 'app/dbt/config/providers/defaults/flag_allowlists/global.yml'
+            allowlist_relpath = "app/dbt/config/providers/defaults/flag_allowlists/global.yml"
             with open(ROOT_DIRPATH / allowlist_relpath, "r", encoding="utf-8") as f:
                 expected_content = yaml.load(f, Loader=yaml.SafeLoader)
 
             assert result == expected_content
 
-        @pytest.mark.parametrize(
-            "verb",
-            [
-                "run",
-                "seed",
-                "snapshot",
-                "test"
-            ]
-        )
+        @pytest.mark.parametrize("verb", ["run", "seed", "snapshot", "test"])
         def test_verb_allowlist(verb: str):
             """should return content of default {verb} flag allowlist file"""
             # arrange
@@ -79,7 +72,7 @@ def describe_DefaultsConfigProvider():
             result = provider.get_flag_allowlist(verb)
 
             # assert
-            allowlist_relpath = f'app/dbt/config/providers/defaults/flag_allowlists/dbt-{verb}.yml'
+            allowlist_relpath = f"app/dbt/config/providers/defaults/flag_allowlists/dbt-{verb}.yml"
             with open(ROOT_DIRPATH / allowlist_relpath, "r", encoding="utf-8") as f:
                 expected_content = yaml.load(f, Loader=yaml.SafeLoader)
 
@@ -103,16 +96,7 @@ def describe_DefaultsConfigProvider():
     def describe_get_flag_internal_values():
         """Tests for DefaultsConfigProvider.get_flag_internal_values"""
 
-        @pytest.mark.parametrize(
-            "verb",
-            [
-                None,
-                "run",
-                "seed",
-                "snapshot",
-                "test"
-            ]
-        )
+        @pytest.mark.parametrize("verb", [None, "run", "seed", "snapshot", "test"])
         def test_returns_none(verb: Optional[str]):
             """should return None as there are no default internal flag values"""
             # arrange
@@ -142,16 +126,7 @@ def describe_DefaultsConfigProvider():
     def describe_get_env_variables():
         """Tests for DefaultsConfigProvider.get_env_variables"""
 
-        @pytest.mark.parametrize(
-            "verb",
-            [
-                None,
-                "run",
-                "seed",
-                "snapshot",
-                "test"
-            ]
-        )
+        @pytest.mark.parametrize("verb", [None, "run", "seed", "snapshot", "test"])
         def test_returns_none(verb: Optional[str]):
             """should return None as there are no default environment variables"""
             # arrange
@@ -195,16 +170,7 @@ def describe_DefaultsConfigProvider():
     def describe_get_variables():
         """Tests for DefaultsConfigProvider.get_variables"""
 
-        @pytest.mark.parametrize(
-            "verb",
-            [
-                None,
-                "run",
-                "seed",
-                "snapshot",
-                "test"
-            ]
-        )
+        @pytest.mark.parametrize("verb", [None, "run", "seed", "snapshot", "test"])
         def test_returns_none(verb: Optional[str]):
             """should return None as there is no default variables"""
             # arrange

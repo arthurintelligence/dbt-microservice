@@ -1,4 +1,5 @@
 # pylint: disable=unused-variable,assignment-from-none,too-many-lines,invalid-name,broad-exception-caught
+# mypy: disable-error-code="no-untyped-def"
 """Tests for ValidationError exception class.
 
 Author:
@@ -6,7 +7,9 @@ Author:
 """
 
 import pytest
+
 from app.dbt.config.errors import ValidationError
+
 
 def describe_ValidationError():
     """Test suite for ValidationError exception class."""

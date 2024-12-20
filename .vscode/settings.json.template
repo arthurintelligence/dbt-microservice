@@ -1,0 +1,19 @@
+{
+    // editor options
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.codeActionsOnSave": {
+        "source.fixAll": "explicit",
+        "source.organizeImports": "explicit"
+    },
+    "editor.formatOnSave": true, // Optional: false if f you want to avoid automatic formatting
+
+    // python extensions options
+    "python.defaultInterpreterPath": "$(poetry env info --path)/bin/python",  // FIXME
+    "black-formatter.path": ["$(poetry env info --path)/bin/black"],  // FIXME
+    "flake8.path": ["$(poetry env info --path)/bin/flake8"],  // FIXME
+    "flake8.args": ["--config=.flake8"],
+    "isort.path": ["$(poetry env info --path)/bin/isort"],  // FIXME
+    "isort.args":["--profile", "black"],
+    "mypy-type-checker.path": ["$(poetry env info --path)/bin/mypy"],  // FIXME
+    "pylint.enabled": false,
+}
