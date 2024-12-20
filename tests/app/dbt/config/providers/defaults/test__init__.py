@@ -76,7 +76,7 @@ def describe_DefaultsConfigProvider():
             provider = DefaultsConfigProvider()
 
             # act
-            result = provider.get_flag_allowlist(verb=None)
+            result = provider.get_flag_allowlist(verb)
 
             # assert
             allowlist_relpath = f'app/dbt/config/providers/defaults/flag_allowlists/dbt-{verb}.yml'

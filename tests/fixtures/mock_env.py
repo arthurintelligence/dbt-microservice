@@ -1,4 +1,6 @@
 import os
+from pathlib import Path
+from typing import Union
 
 import pytest
 
@@ -30,9 +32,11 @@ class MockEnv:
         # Clear variables
         self.modified = set()
 
-    def setenv(self, key: str, value: str) -> None:
+    def setenv(self, key: str, value: Union[str, Path]) -> None:
         """Set an environment variable."""
         self.modified.add(key)
+        if isinstance(value, Path):
+            value = str(value)
         self.monkeypatch.setenv(key, value)
 
     def delenv(self, key: str, raising: bool = False) -> None:

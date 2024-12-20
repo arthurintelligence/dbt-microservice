@@ -155,7 +155,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
             # Verify that the value matches expected format
             if not re.match(r"^([a-z][a-z0-9\-]+,?)+$", value):
                 raise ValueError(
-                    f"ENV: {variable}: Invalid value; "
+                    f"{type(self).__name__}: {variable}: Invalid value; "
                     "Should be a comma-separated list of flags in kebab case."
                 )
             enable = "ENABLE" in variable
@@ -165,9 +165,9 @@ class EnvironmentConfigProvider(BaseConfigProvider):
             # are not recognized
             DbtFlagsSchema.validate_flag_availability(
                 verb=verb,
-                message=f"ENV: {variable}: Unrecognized flags",
+                message=f"{type(self).__name__}: {variable}: Unrecognized flags",
                 flag_message=lambda _, flag, is_not_recognized_str: (
-                    f'ENV: {variable}: "--{kebab_case(flag)}"'
+                    f'{type(self).__name__}: {variable}: "--{kebab_case(flag)}"'
                     + is_not_recognized_str
                 ),
                 flags=sub_allowlist
@@ -249,9 +249,9 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         # are not recognized
         DbtFlagsSchema.validate_flag_availability(
             verb=verb,
-            message=f"ENV: {var_prefix}*: Unrecognized flags",
+            message=f"{type(self).__name__}: {var_prefix}*: Unrecognized flags",
             flag_message=lambda _, flag, is_not_recognized_str: (
-                f'ENV: {var_prefix}{flag.upper()}: "--{kebab_case(flag.lower())}"'
+                f'{type(self).__name__}: {var_prefix}{flag.upper()}: "--{kebab_case(flag.lower())}"'
                 + is_not_recognized_str
             ),
             flags=flags
@@ -359,7 +359,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         # Verify that the value matches expected format
         if not re.match(r"^(([a-z][a-z\-]+,?)|[*])+$", os.getenv(env_var_name)):
             raise ValueError(
-                f"ENV: {env_var_name}: "
+                f"{type(self).__name__}: {env_var_name}: "
                 "Should be in the form 'verb(,verb)+'"
             )
 
@@ -373,7 +373,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         if not value.issubset(available_verbs):
             unsupported_verbs = value - available_verbs
             raise ValueError(
-                f"ENV: {env_var_name}: Verbs {sorted(unsupported_verbs)} "
+                f"{type(self).__name__}: {env_var_name}: Verbs {sorted(unsupported_verbs)} "
                 "are not supported"
             )
         return value

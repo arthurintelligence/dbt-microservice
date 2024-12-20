@@ -3,7 +3,7 @@ import pytest
 from app.dbt.config.providers import (
     DefaultsConfigProvider,
     EnvironmentConfigProvider,
-    IniFileConfigProvider,
+    FileConfigProvider,
     get_providers
 )
 
@@ -12,7 +12,7 @@ def describe_get_providers():
 
     def test_returns_expected_providers():
         """
-        should return DefaultsConfigProvider, IniFileConfigProvider, \
+        should return DefaultsConfigProvider, FileConfigProvider, \
         EnvironmentConfigProvider, in that specific order.
         """
         # no arrange
@@ -23,5 +23,5 @@ def describe_get_providers():
         # assert
         assert len(providers) == 3
         assert isinstance(providers[0], DefaultsConfigProvider)
-        assert isinstance(providers[1], IniFileConfigProvider)
+        assert isinstance(providers[1], FileConfigProvider)
         assert isinstance(providers[2], EnvironmentConfigProvider)

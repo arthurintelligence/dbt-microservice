@@ -1,11 +1,6 @@
 from pathlib import Path
 from configparser import ConfigParser
 from typing import Dict, Any
-from uuid import uuid4
-
-import pytest
-
-from tests.fixtures.mock_env import MockEnv
 
 __all__ = ["AutoCommitConfigParser"]
 
@@ -44,6 +39,7 @@ class AutoCommitConfigParser(ConfigParser):
 
         # Create file if it doesn't exist
         if not path.exists():
+            path.parent.mkdir(parents=True)
             path.touch()
         else:
             # If file exists, load its contents

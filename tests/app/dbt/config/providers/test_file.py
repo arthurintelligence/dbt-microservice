@@ -1,5 +1,6 @@
 # pylint: disable=unused-variable,assignment-from-none,too-many-lines,invalid-name
 import os
+import re
 import configparser
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -7,20 +8,16 @@ from unittest.mock import patch
 
 import pytest
 
-from app.dbt.config.providers.ini_file import IniFileConfigProvider
-from tests.fixtures.mock_env import MockEnv, fixtures as mockenv_fixtures
-from tests.fixtures.configparser import AutoCommitConfigParser, fixtures as configparser_fixtures
-
-# Register fixtures
-pytest.fixture(mockenv_fixtures["mock_env"])  # mock_env, necessary for ini_config
-pytest.fixture(configparser_fixtures["ini_config"])  # ini_config
+from app.dbt.config.providers.file import FileConfigProvider
+from tests.fixtures.mock_env import MockEnv
+from tests.fixtures.configparser import AutoCommitConfigParser
 
 
-def describe_IniFileConfigProvider():
-    """Tests for IniFileConfigProvider class methods"""
+def describe_FileConfigProvider():
+    """Tests for FileConfigProvider class methods"""
 
-    def describe__read_ini_file():
-        """Tests for IniFileConfigProvider._read_ini_file() static method"""
+    def describe__read_config_file():
+        """Tests for FileConfigProvider._read_config_file() static method"""
 
         def test_returns_none_when_env_var_not_set(mock_env: MockEnv):
             """Should return None when DBT_CONFIG_FILE environment variable is not set"""
@@ -28,7 +25,7 @@ def describe_IniFileConfigProvider():
             mock_env.delenv("DBT_CONFIG_FILE")
 
             # act
-            result = IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
+            result = FileConfigProvider._read_config_file()  # pylint: disable=protected-access
 
             # assert
             assert result is None
@@ -39,31 +36,28 @@ def describe_IniFileConfigProvider():
             mock_env.setenv("DBT_CONFIG_FILE", "")
 
             # act
-            result = IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
+            result = FileConfigProvider._read_config_file()  # pylint: disable=protected-access
 
             # assert
             assert result is None
 
-        def test_returns_config_parser_for_valid_ini(mock_env: MockEnv, tmp_path):
-            """Should return ConfigParser instance for valid .ini file"""
+        def test_returns_config_parser_for_valid_file(mock_config: AutoCommitConfigParser, tmp_path: Path):
+            """Should return Tuple[Path, ConfigParser] instance for valid .ini file"""
             # arrange
-            ini_content = """
-            [section]
-            key = value
-            """
-            ini_file = tmp_path / "config.ini"
-            ini_file.write_text(ini_content)
-            mock_env.setenv("DBT_CONFIG_FILE", str(ini_file))
+            mock_config.write_dict({
+                "section": {"key": "value"}
+            })
 
             # act
-            result = IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
+            path, config = FileConfigProvider._read_config_file()  # pylint: disable=protected-access
 
             # assert
-            assert isinstance(result, configparser.ConfigParser)
-            assert result.has_section("section")
-            assert result.get("section", "key") == "value"
+            assert isinstance(path, Path)
+            assert isinstance(config, configparser.ConfigParser)
+            assert config.has_section("section")
+            assert config.get("section", "key") == "value"
 
-        def test_raises_file_not_found_for_nonexistent_file(mock_env: MockEnv, tmp_path):
+        def test_raises_file_not_found_for_nonexistent_file(mock_env: MockEnv, tmp_path: Path):
             """Should raise FileNotFoundError when file does not exist"""
             # arrange
             nonexistent_file = tmp_path / "nonexistent.ini"
@@ -71,10 +65,13 @@ def describe_IniFileConfigProvider():
 
             # act & assert
             with pytest.raises(FileNotFoundError) as exc_info:
-                IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
-            assert str(exc_info.value) == f"DBT_CONFIG_FILE={nonexistent_file}."
+                FileConfigProvider._read_config_file()  # pylint: disable=protected-access
+            assert str(exc_info.value) == (
+                f"FileConfigProvider: {nonexistent_file}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
-        def test_raises_is_directory_error_for_directory(mock_env: MockEnv, tmp_path):
+        def test_raises_is_directory_error_for_directory(mock_env: MockEnv, tmp_path: Path):
             """Should raise IsADirectoryError when path points to a directory"""
             # arrange
             directory = tmp_path / "config_dir"
@@ -83,23 +80,14 @@ def describe_IniFileConfigProvider():
 
             # act & assert
             with pytest.raises(IsADirectoryError) as exc_info:
-                IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
-            assert str(exc_info.value) == f"DBT_CONFIG_FILE={directory}."
+                FileConfigProvider._read_config_file()  # pylint: disable=protected-access
+            assert str(exc_info.value) == (
+                f"FileConfigProvider: {directory}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
-        def test_raises_value_error_for_non_ini_file(mock_env: MockEnv, tmp_path):
-            """Should raise ValueError when file does not have .ini extension"""
-            # arrange
-            txt_file = tmp_path / "config.txt"
-            txt_file.touch()
-            mock_env.setenv("DBT_CONFIG_FILE", str(txt_file))
-
-            # act & assert
-            with pytest.raises(ValueError) as exc_info:
-                IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
-            assert str(exc_info.value) == f"DBT_CONFIG_FILE={txt_file} should be a .ini file"
-
-        def test_handles_invalid_ini_content(mock_env: MockEnv, tmp_path):
-            """Should return ConfigParser with empty config when ini content is invalid"""
+        def test_handles_invalid_content(mock_env: MockEnv, tmp_path: Path):
+            """Should raise configparser.MissingSectionHeaderError when file content is invalid"""
             # arrange
             invalid_content = """
             [invalid section
@@ -109,72 +97,81 @@ def describe_IniFileConfigProvider():
             ini_file.write_text(invalid_content)
             mock_env.setenv("DBT_CONFIG_FILE", str(ini_file))
 
-            # act
-            result = IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
-
+            # act & assert
+            with pytest.raises(configparser.MissingSectionHeaderError) as exc_info:
+                FileConfigProvider._read_config_file()  # pylint: disable=protected-access
+            
             # assert
-            assert isinstance(result, configparser.ConfigParser)
-            assert len(result.sections()) == 0
-            assert False
-            # this test shouldn't pass, it's a tmp test to see what the actual
-            # behaviour of ConfigParser is
+            assert str(exc_info.value) == (
+                "FileConfigProvider: File is malformed; does not contain section headers.\n"
+                f"File: {ini_file}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
-        def test_handles_empty_ini_file(mock_env: MockEnv, tmp_path):
-            """Should return None for empty .ini file"""
+        def test_handles_empty_file(mock_env: MockEnv, tmp_path: Path):
+            """Should raise a configparser.ParsingError when the file is empty"""
             # arrange
             ini_file = tmp_path / "empty.ini"
             ini_file.touch()
             mock_env.setenv("DBT_CONFIG_FILE", str(ini_file))
 
-            # act
-            result = IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
+            # act & assert
+            with pytest.raises(configparser.ParsingError) as exc_info:
+                FileConfigProvider._read_config_file()  # pylint: disable=protected-access
 
-            # assert
-            assert result is None
+            # # assert
+            assert str(exc_info.value) == (
+                "FileConfigProvider: File is either empty or does not contains section headers.\n"
+                f"File: {ini_file}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
-        def test_handles_unicode_content(mock_env: MockEnv, tmp_path):
+        def test_handles_unicode_content(mock_env: MockEnv, tmp_path: Path):
             """Should correctly handle .ini file with Unicode content"""
             # arrange
-            unicode_content = """
-            [section]
-            key = 值  # Chinese character
-            räksmörgås = värde  # Swedish characters
-            おすし = 寿司  # Japanese characters
-            """
+            unicode_content = (
+                "[section]\n"
+                "key = 值\n"  # Chinese character
+                "räksmörgås = värde\n"  # Swedish characters
+                "おすし = 寿司\n"  # Japanese characters
+            )
             ini_file = tmp_path / "unicode.ini"
             ini_file.write_text(unicode_content, encoding='utf-8')
             mock_env.setenv("DBT_CONFIG_FILE", str(ini_file))
 
             # act
-            result = IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
+            _, config = FileConfigProvider._read_config_file()  # pylint: disable=protected-access
 
             # assert
-            assert isinstance(result, configparser.ConfigParser)
-            assert result.has_section("section")
-            assert result.get("section", "key") == "値"
-            assert result.get("section", "räksmörgås") == "värde"
-            assert result.get("section", "おすし") == "寿司"
+            assert isinstance(config, configparser.ConfigParser)
+            assert config.has_section("section")
+            assert config.get("section", "key") == "值"
+            assert config.get("section", "räksmörgås") == "värde"
+            assert config.get("section", "おすし") == "寿司"
 
-        def test_uses_utf8_encoding(mock_env: MockEnv, tmp_path):
+        def test_uses_utf8_encoding(mock_config: AutoCommitConfigParser):
             """Should use UTF-8 encoding when reading the file"""
             # arrange
-            ini_file = tmp_path / "config.ini"
-            mock_env.setenv("DBT_CONFIG_FILE", str(ini_file))
+            mock_config.write_dict({
+                "dbt": {"key": "value"}
+            })
 
             # act & assert
-            with patch('configparser.ConfigParser.read') as mock_read:
-                IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
-                mock_read.assert_called_once_with(str(ini_file), encoding='utf-8')
+            # mocking configparser.ConfigParser.read will make the call fail
+            # and any subsequent usage of the data will raise a ParsingError
+            with pytest.raises(configparser.ParsingError):
+                with patch('configparser.ConfigParser.read') as mock_read:
+                    FileConfigProvider._read_config_file()  # pylint: disable=protected-access
+                    mock_read.assert_called_once_with(str(mock_config.path), encoding='utf-8')
 
         @pytest.mark.parametrize("path_with_spaces", [
             "path with spaces.ini",
             "path\twith\ttabs.ini",
             "path\nwith\nnewlines.ini",
             "  leading_spaces.ini",
-            "trailing_spaces.ini  "
         ])
-        def test_handles_paths_with_spaces(mock_env: MockEnv, tmp_path, path_with_spaces):
-            """Should handle paths containing various types of whitespace"""
+        def test_handles_paths_with_spaces(mock_env: MockEnv, tmp_path: Path, path_with_spaces: str):
+            """Should handle DBT_CONFIG_FILE environment variable containing various types of whitespace"""
             # arrange
             ini_content = """
             [section]
@@ -182,17 +179,41 @@ def describe_IniFileConfigProvider():
             """
             ini_file = tmp_path / path_with_spaces
             ini_file.write_text(ini_content)
-            mock_env.setenv("DBT_CONFIG_FILE", str(ini_file))
+            
+            mock_env.setenv("DBT_CONFIG_FILE", str(tmp_path / path_with_spaces))
 
             # act
-            result = IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
+            path, config = FileConfigProvider._read_config_file()  # pylint: disable=protected-access
 
             # assert
-            assert isinstance(result, configparser.ConfigParser)
-            assert result.has_section("section")
-            assert result.get("section", "key") == "value"
+            assert isinstance(path, Path)
+            assert ini_file == path
+            assert isinstance(config, configparser.ConfigParser)
+            assert config.has_section("section")
+            assert config.get("section", "key") == "value"
 
-        def test_handles_relative_paths(mock_env: MockEnv, tmp_path):
+
+        def test_handles_paths_with_trailing_spaces(mock_env: MockEnv, tmp_path: Path):
+            """Should raise FileNotFoundError when DBT_CONFIG_FILE environment variable contains trailling whitespace"""
+            # we handle this case differently because it's most likely to be a 
+            # configuration error from the user's standpoint.
+
+            # arrange
+            file_path = tmp_path / "trailing_spaces.ini  "
+            file_content = """
+            [section]
+            key = value
+            """
+            file_path.write_text(file_content)
+            
+            mock_env.setenv("DBT_CONFIG_FILE", file_path)
+
+            # act & assert
+            with pytest.raises(FileNotFoundError):
+                FileConfigProvider._read_config_file()  # pylint: disable=protected-access
+
+
+        def test_handles_relative_paths(mock_env: MockEnv, tmp_path: Path):
             """Should handle relative paths in DBT_CONFIG_FILE"""
             # arrange
             # Create file in temp directory and change to it
@@ -209,16 +230,16 @@ def describe_IniFileConfigProvider():
                 mock_env.setenv("DBT_CONFIG_FILE", "config.ini")
 
                 # act
-                result = IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
+                path, config = FileConfigProvider._read_config_file()  # pylint: disable=protected-access
 
                 # assert
-                assert isinstance(result, configparser.ConfigParser)
-                assert result.has_section("section")
-                assert result.get("section", "key") == "value"
+                assert isinstance(config, configparser.ConfigParser)
+                assert config.has_section("section")
+                assert config.get("section", "key") == "value"
             finally:
                 os.chdir(original_dir)
 
-        def test_handles_symlink(mock_env: MockEnv, tmp_path):
+        def test_handles_symlink(mock_env: MockEnv, tmp_path: Path):
             """Should handle symlinks to .ini files"""
             # arrange
             # Create actual file
@@ -236,21 +257,21 @@ def describe_IniFileConfigProvider():
             mock_env.setenv("DBT_CONFIG_FILE", str(symlink_file))
 
             # act
-            result = IniFileConfigProvider._read_ini_file()  # pylint: disable=protected-access
+            path, config = FileConfigProvider._read_config_file()  # pylint: disable=protected-access
 
             # assert
-            assert isinstance(result, configparser.ConfigParser)
-            assert result.has_section("section")
-            assert result.get("section", "key") == "value"
+            assert isinstance(config, configparser.ConfigParser)
+            assert config.has_section("section")
+            assert config.get("section", "key") == "value"
 
     def describe_get_allowed_verbs():
-        def test_returns_none_when_variable_not_set(ini_config: AutoCommitConfigParser):
+        def test_returns_none_when_variable_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].allowed_verbs is not set"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"dummy": "yes"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act
@@ -259,13 +280,13 @@ def describe_IniFileConfigProvider():
             # assert
             assert result is None
 
-        def test_returns_allowed_verbs_when_variable_has_valid_value(ini_config: AutoCommitConfigParser):
+        def test_returns_allowed_verbs_when_variable_has_valid_value(mock_config: AutoCommitConfigParser):
             """should return set of verbs when option [dbt].allowed_verbs is valid"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"allowed_verbs": "run,test"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act
@@ -284,19 +305,26 @@ def describe_IniFileConfigProvider():
         )
         def test_raises_when_variable_value_has_invalid_format(
             allowed_verb_str: str,
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should raise ValueError when option [dbt].allowed_verbs format is invalid"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"allowed_verbs": allowed_verb_str}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match="INI: [dbt].allowed_verbs: Should be in the form 'verb(,verb)+'"):
+            with pytest.raises(ValueError) as exc_info:
                 provider.get_allowed_verbs(available_verbs)
+        
+            # assert
+            assert str(exc_info.value) == (
+                f'FileConfigProvider: Option `[dbt].allowed_verbs` should be in the form "verb(,verb)+".\n'
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
         @pytest.mark.parametrize(
             "allowed_verb_str,unsupported_verbs",
@@ -325,31 +353,36 @@ def describe_IniFileConfigProvider():
         def test_raises_when_variable_value_contains_unsupported_verbs(
             allowed_verb_str: str,
             unsupported_verbs: List[str],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should raise ValueError when option [dbt].allowed_verbs contains unsupported verb(s)"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"allowed_verbs": allowed_verb_str}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(
-                ValueError,
-                match=f"INI: [dbt].allowed_verbs: Verbs {unsupported_verbs} are not supported"
-            ):
+            with pytest.raises(ValueError) as exc_info:
                 provider.get_allowed_verbs(available_verbs)
+        
+            # assert
+            assert str(exc_info.value) == (
+                f"FileConfigProvider: Option `[dbt].allowed_verbs`: Verbs {unsupported_verbs} "
+                "are not supported.\n"
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
     def describe_get_env_variables():
-        def test_returns_none_when_no_global_section(ini_config: AutoCommitConfigParser):
+        def test_returns_none_when_no_global_section(mock_config: AutoCommitConfigParser):
             """should return None when target is global dbt env and is no [dbt.env_vars] section"""
             # arrange
-            ini_config.write_dict({
-                "dbt.run.env_vars": {"var_1": "run-1"}
+            mock_config.write_dict({
+                "dbt.run.env_vars": {"DBT_ENV_VAR_1": "run-1"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
 
             # act
             result = provider.get_env_variables(None)
@@ -357,16 +390,16 @@ def describe_IniFileConfigProvider():
             # assert
             assert result is None
 
-        def test_returns_none_when_no_verb_section(ini_config: AutoCommitConfigParser):
+        def test_returns_none_when_no_verb_section(mock_config: AutoCommitConfigParser):
             """should return None when target is dbt {verb} env and is no [dbt.{verb}.env_vars] section"""
             # arrange
-            ini_config.write_dict({
-                "dbt.env_vars": {"var_1": "global-1"}
+            mock_config.write_dict({
+                "dbt.env_vars": {"DBT_ENV_VAR_1": "global-1"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
 
             # act
-            result = provider.get_env_variables(None)
+            result = provider.get_env_variables("run")
 
             # assert
             assert result is None
@@ -377,7 +410,7 @@ def describe_IniFileConfigProvider():
                 (
                     {
                         "dbt.env_vars": {
-                            "secret_var_1": "global-1"
+                            "DBT_ENV_SECRET_VAR_1": "global-1"
                         }
                     },
                     {
@@ -387,8 +420,8 @@ def describe_IniFileConfigProvider():
                 (
                     {
                         "dbt.env_vars": {
-                            "secret_var_1": "global-1",
-                            "custom_env_var_1": "global-2"
+                            "DBT_ENV_SECRET_VAR_1": "global-1",
+                            "DBT_ENV_CUSTOM_ENV_VAR_1": "global-2"
                         }
                     },
                     {
@@ -399,9 +432,9 @@ def describe_IniFileConfigProvider():
                 (
                     {
                         "dbt.env_vars": {
-                            "var_1": "global-1",
-                            "secret_var_2": "global-2",
-                            "custom_env_var_3": "global-3"
+                            "DBT_ENV_VAR_1": "global-1",
+                            "DBT_ENV_SECRET_VAR_2": "global-2",
+                            "DBT_ENV_CUSTOM_ENV_VAR_3": "global-3"
                         }
                     },
                     {
@@ -415,12 +448,12 @@ def describe_IniFileConfigProvider():
         def test_global_variables(
             ini_content: Dict,
             expected: Dict[str, str],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should return dict of environment variables from [dbt.env_vars] section"""
             # arrange
-            ini_config.write_dict(ini_content)
-            provider = IniFileConfigProvider()
+            mock_config.write_dict(ini_content)
+            provider = FileConfigProvider()
 
             # act
             result = provider.get_env_variables(None)
@@ -435,7 +468,7 @@ def describe_IniFileConfigProvider():
                     "run",
                     {
                         "dbt.run.env_vars": {
-                            "secret_var_1": "run-1"
+                            "DBT_ENV_SECRET_VAR_1": "run-1"
                         }
                     },
                     {
@@ -446,8 +479,8 @@ def describe_IniFileConfigProvider():
                     "run",
                     {
                         "dbt.run.env_vars": {
-                            "secret_var_1": "run-1",
-                            "custom_env_var_1": "run-2"
+                            "DBT_ENV_SECRET_VAR_1": "run-1",
+                            "DBT_ENV_CUSTOM_ENV_VAR_1": "run-2"
                         }
                     },
                     {
@@ -459,9 +492,9 @@ def describe_IniFileConfigProvider():
                     "run",
                     {
                         "dbt.run.env_vars": {
-                            "var_1": "run-1",
-                            "secret_var_2": "run-2",
-                            "custom_env_var_3": "run-3"
+                            "DBT_ENV_VAR_1": "run-1",
+                            "DBT_ENV_SECRET_VAR_2": "run-2",
+                            "DBT_ENV_CUSTOM_ENV_VAR_3": "run-3"
                         }
                     },
                     {
@@ -476,12 +509,12 @@ def describe_IniFileConfigProvider():
             verb: str,
             ini_content: Dict,
             expected: Dict[str, str],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should return dict of environment variables from [dbt.{verb}.env_vars] section"""
             # arrange
-            ini_config.write_dict(ini_content)
-            provider = IniFileConfigProvider()
+            mock_config.write_dict(ini_content)
+            provider = FileConfigProvider()
 
             # act
             result = provider.get_env_variables(verb)
@@ -489,27 +522,27 @@ def describe_IniFileConfigProvider():
             # assert
             assert result == expected
 
-        def test_verb_variables_only_given_verb(ini_config: AutoCommitConfigParser):
+        def test_verb_variables_only_given_verb(mock_config: AutoCommitConfigParser):
             """should only return environment variables from [dbt.{verb}.env_vars] when verb is specified"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt.env_vars": {
-                    "var_1": "global-1",
-                    "secret_var_2": "global-2",
-                    "custom_env_var_3": "global-3"
+                    "DBT_ENV_VAR_1": "global-1",
+                    "DBT_ENV_SECRET_VAR_2": "global-2",
+                    "DBT_ENV_CUSTOM_ENV_VAR_3": "global-3"
                 },
                 "dbt.run.env_vars": {
-                    "var_1": "run-1",
-                    "secret_var_2": "run-2",
-                    "custom_env_var_3": "run-3"
+                    "DBT_ENV_VAR_1": "run-1",
+                    "DBT_ENV_SECRET_VAR_2": "run-2",
+                    "DBT_ENV_CUSTOM_ENV_VAR_3": "run-3"
                 },
                 "dbt.test.env_vars": {
-                    "var_1": "test-1",
-                    "secret_var_2": "test-2",
-                    "custom_env_var_3": "test-3"
+                    "DBT_ENV_VAR_1": "test-1",
+                    "DBT_ENV_SECRET_VAR_2": "test-2",
+                    "DBT_ENV_CUSTOM_ENV_VAR_3": "test-3"
                 }
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
 
             # act
             result = provider.get_env_variables("run")
@@ -528,7 +561,7 @@ def describe_IniFileConfigProvider():
                     None,
                     {
                         "dbt": {"rename_env": "true"},
-                        "dbt.env_vars": {"var_1": "global-1"}
+                        "dbt.env_vars": {"DBT_ENV_VAR_1": "global-1"}
                     },
                     {"DBT_VAR_1": "global-1"}
                 ),
@@ -536,7 +569,7 @@ def describe_IniFileConfigProvider():
                     None,
                     {
                         "dbt": {"rename_env": "yes"},
-                        "dbt.env_vars": {"var_1": "global-1"}
+                        "dbt.env_vars": {"DBT_ENV_VAR_1": "global-1"}
                     },
                     {"DBT_VAR_1": "global-1"}
                 ),
@@ -544,7 +577,7 @@ def describe_IniFileConfigProvider():
                     None,
                     {
                         "dbt": {"rename_env": "1"},
-                        "dbt.env_vars": {"var_1": "global-1"}
+                        "dbt.env_vars": {"DBT_ENV_VAR_1": "global-1"}
                     },
                     {"DBT_VAR_1": "global-1"}
                 ),
@@ -552,7 +585,7 @@ def describe_IniFileConfigProvider():
                     None,
                     {
                         "dbt": {"rename_env": "on"},
-                        "dbt.env_vars": {"var_1": "global-1"}
+                        "dbt.env_vars": {"DBT_ENV_VAR_1": "global-1"}
                     },
                     {"DBT_VAR_1": "global-1"}
                 ),
@@ -560,7 +593,31 @@ def describe_IniFileConfigProvider():
                     "run",
                     {
                         "dbt": {"rename_env": "true"},
-                        "dbt.run.env_vars": {"var_1": "run-1"}
+                        "dbt.run.env_vars": {"DBT_ENV_VAR_1": "run-1"}
+                    },
+                    {"DBT_VAR_1": "run-1"}
+                ),
+                (
+                    "run",
+                    {
+                        "dbt": {"rename_env": "yes"},
+                        "dbt.run.env_vars": {"DBT_ENV_VAR_1": "run-1"}
+                    },
+                    {"DBT_VAR_1": "run-1"}
+                ),
+                (
+                    "run",
+                    {
+                        "dbt": {"rename_env": "1"},
+                        "dbt.run.env_vars": {"DBT_ENV_VAR_1": "run-1"}
+                    },
+                    {"DBT_VAR_1": "run-1"}
+                ),
+                (
+                    "run",
+                    {
+                        "dbt": {"rename_env": "on"},
+                        "dbt.run.env_vars": {"DBT_ENV_VAR_1": "run-1"}
                     },
                     {"DBT_VAR_1": "run-1"}
                 )
@@ -570,12 +627,12 @@ def describe_IniFileConfigProvider():
             verb: Optional[str],
             ini_content: Dict,
             expected: Dict[str, str],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should rename environment variables when [dbt].rename_env is truthy"""
             # arrange
-            ini_config.write_dict(ini_content)
-            provider = IniFileConfigProvider()
+            mock_config.write_dict(ini_content)
+            provider = FileConfigProvider()
 
             # act
             result = provider.get_env_variables(verb)
@@ -590,7 +647,7 @@ def describe_IniFileConfigProvider():
                     None,
                     {
                         "dbt": {"rename_env": "false"},
-                        "dbt.env_vars": {"var_1": "global-1"}
+                        "dbt.env_vars": {"DBT_ENV_VAR_1": "global-1"}
                     },
                     {"DBT_ENV_VAR_1": "global-1"}
                 ),
@@ -598,7 +655,7 @@ def describe_IniFileConfigProvider():
                     None,
                     {
                         "dbt": {"rename_env": "no"},
-                        "dbt.env_vars": {"var_1": "global-1"}
+                        "dbt.env_vars": {"DBT_ENV_VAR_1": "global-1"}
                     },
                     {"DBT_ENV_VAR_1": "global-1"}
                 ),
@@ -606,7 +663,7 @@ def describe_IniFileConfigProvider():
                     None,
                     {
                         "dbt": {"rename_env": "0"},
-                        "dbt.env_vars": {"var_1": "global-1"}
+                        "dbt.env_vars": {"DBT_ENV_VAR_1": "global-1"}
                     },
                     {"DBT_ENV_VAR_1": "global-1"}
                 ),
@@ -614,7 +671,7 @@ def describe_IniFileConfigProvider():
                     None,
                     {
                         "dbt": {"rename_env": "off"},
-                        "dbt.env_vars": {"var_1": "global-1"}
+                        "dbt.env_vars": {"DBT_ENV_VAR_1": "global-1"}
                     },
                     {"DBT_ENV_VAR_1": "global-1"}
                 ),
@@ -622,7 +679,7 @@ def describe_IniFileConfigProvider():
                     "run",
                     {
                         "dbt": {"rename_env": "false"},
-                        "dbt.run.env_vars": {"var_1": "run-1"}
+                        "dbt.run.env_vars": {"DBT_ENV_VAR_1": "run-1"}
                     },
                     {"DBT_ENV_VAR_1": "run-1"}
                 ),
@@ -630,7 +687,7 @@ def describe_IniFileConfigProvider():
                     "run",
                     {
                         "dbt": {"rename_env": "no"},
-                        "dbt.run.env_vars": {"var_1": "run-1"}
+                        "dbt.run.env_vars": {"DBT_ENV_VAR_1": "run-1"}
                     },
                     {"DBT_ENV_VAR_1": "run-1"}
                 ),
@@ -638,7 +695,7 @@ def describe_IniFileConfigProvider():
                     "run",
                     {
                         "dbt": {"rename_env": "0"},
-                        "dbt.run.env_vars": {"var_1": "run-1"}
+                        "dbt.run.env_vars": {"DBT_ENV_VAR_1": "run-1"}
                     },
                     {"DBT_ENV_VAR_1": "run-1"}
                 ),
@@ -646,7 +703,7 @@ def describe_IniFileConfigProvider():
                     "run",
                     {
                         "dbt": {"rename_env": "off"},
-                        "dbt.run.env_vars": {"var_1": "run-1"}
+                        "dbt.run.env_vars": {"DBT_ENV_VAR_1": "run-1"}
                     },
                     {"DBT_ENV_VAR_1": "run-1"}
                 )
@@ -656,12 +713,12 @@ def describe_IniFileConfigProvider():
             verb: Optional[str],
             ini_content: Dict,
             expected: Dict[str, str],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should not rename environment variables when [dbt].rename_env is falsy"""
             # arrange
-            ini_config.write_dict(ini_content)
-            provider = IniFileConfigProvider()
+            mock_config.write_dict(ini_content)
+            provider = FileConfigProvider()
 
             # act
             result = provider.get_env_variables(verb)
@@ -670,13 +727,13 @@ def describe_IniFileConfigProvider():
             assert result == expected
 
     def describe_get_env_variables_apply_global():
-        def test_returns_none_when_option_not_set(ini_config: AutoCommitConfigParser):
+        def test_returns_none_when_option_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].apply_global_env_vars is not set"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"dummy": "yes"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act
@@ -685,13 +742,13 @@ def describe_IniFileConfigProvider():
             # assert
             assert result is None
 
-        def test_returns_verbs_when_option_has_valid_value(ini_config: AutoCommitConfigParser):
+        def test_returns_verbs_when_option_has_valid_value(mock_config: AutoCommitConfigParser):
             """should return Set[verb] when [dbt].apply_global_env_vars has valid value"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_env_vars": "run,test"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act
@@ -700,31 +757,46 @@ def describe_IniFileConfigProvider():
             # assert
             assert result == {"run", "test"}
 
-        def test_raises_when_option_value_has_invalid_format(ini_config: AutoCommitConfigParser):
+        def test_raises_when_option_value_has_invalid_format(mock_config: AutoCommitConfigParser):
             """should raise ValueError when [dbt].apply_global_env_vars format is invalid"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_env_vars": "run|test"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match="INI: [dbt].apply_global_env_vars: Should be in the form 'verb(,verb)+'"):
+            with pytest.raises(ValueError) as exc_info:
                 provider.get_env_variables_apply_global(available_verbs)
+        
+            # assert
+            assert str(exc_info.value) == (
+                f'FileConfigProvider: Option `[dbt].apply_global_env_vars` should be in the form "verb(,verb)+".\n'
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
-        def test_raises_when_option_value_contains_unsupported_verbs(ini_config: AutoCommitConfigParser):
+        def test_raises_when_option_value_contains_unsupported_verbs(mock_config: AutoCommitConfigParser):
             """should raise ValueError when [dbt].apply_global_env_vars contains unsupported verb(s)"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_env_vars": "run,verb"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match="INI: [dbt].apply_global_env_vars: Verbs ['verb'] are not supported"):
+            with pytest.raises(ValueError) as exc_info:
                 provider.get_env_variables_apply_global(available_verbs)
+        
+            # assert
+            assert str(exc_info.value) == (
+                f"FileConfigProvider: Option `[dbt].apply_global_env_vars`: Verbs ['verb'] "
+                "are not supported.\n"
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
     def describe_get_flag_allowlist():
         @pytest.mark.parametrize(
@@ -746,12 +818,12 @@ def describe_IniFileConfigProvider():
             verb: Optional[str],
             ini_content: Dict,
             expected: Dict[str, bool],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should return enabled flags from ini file"""
             # arrange
-            ini_config.write_dict(ini_content)
-            provider = IniFileConfigProvider()
+            mock_config.write_dict(ini_content)
+            provider = FileConfigProvider()
 
             with patch("app.dbt.config.jsonschema.DbtFlagsSchema.validate_flag_availability"):
                 # act
@@ -779,12 +851,12 @@ def describe_IniFileConfigProvider():
             verb: Optional[str],
             ini_content: Dict,
             expected: Dict[str, bool],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should return disabled flags from ini file"""
             # arrange
-            ini_config.write_dict(ini_content)
-            provider = IniFileConfigProvider()
+            mock_config.write_dict(ini_content)
+            provider = FileConfigProvider()
 
             with patch("app.dbt.config.jsonschema.DbtFlagsSchema.validate_flag_availability"):
                 # act
@@ -794,13 +866,13 @@ def describe_IniFileConfigProvider():
                 assert result == expected
 
     def describe_get_flag_allowlist_apply_global():
-        def test_returns_none_when_option_not_set(ini_config: AutoCommitConfigParser):
+        def test_returns_none_when_option_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].apply_global_allowlist is not set"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"dummy": "yes"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act
@@ -809,13 +881,13 @@ def describe_IniFileConfigProvider():
             # assert
             assert result is None
 
-        def test_returns_allowed_verbs_when_option_has_valid_value(ini_config: AutoCommitConfigParser):
+        def test_returns_allowed_verbs_when_option_has_valid_value(mock_config: AutoCommitConfigParser):
             """should return set of verbs when [dbt].apply_global_allowlist has valid value"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_allowlist": "run,test"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act
@@ -834,19 +906,26 @@ def describe_IniFileConfigProvider():
         )
         def test_raises_when_option_value_has_invalid_format(
             value: str,
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should raise ValueError when [dbt].apply_global_allowlist format is invalid"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_allowlist": value}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match="INI: [dbt].apply_global_allowlist: Should be in the form 'verb(,verb)+'"):
+            with pytest.raises(ValueError) as exc_info:
                 provider.get_flag_allowlist_apply_global(available_verbs)
+        
+            # assert
+            assert str(exc_info.value) == (
+                f'FileConfigProvider: Option `[dbt].apply_global_allowlist` should be in the form "verb(,verb)+".\n'
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
         @pytest.mark.parametrize(
             "value,unsupported_verbs",
@@ -870,19 +949,27 @@ def describe_IniFileConfigProvider():
         def test_raises_when_option_value_contains_unsupported_verbs(
             value: str,
             unsupported_verbs: List[str],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should raise ValueError when [dbt].apply_global_allowlist contains unsupported verb(s)"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_allowlist": value}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match=f"INI: [dbt].apply_global_allowlist: Verbs {unsupported_verbs} are not supported"):
+            with pytest.raises(ValueError) as exc_info:
                 provider.get_flag_allowlist_apply_global(available_verbs)
+        
+            # assert
+            assert str(exc_info.value) == (
+                f"FileConfigProvider: Option `[dbt].apply_global_allowlist`: Verbs {unsupported_verbs} "
+                "are not supported.\n"
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
     def describe_get_flag_internal_values():
         @pytest.mark.parametrize(
@@ -912,11 +999,11 @@ def describe_IniFileConfigProvider():
         def test_base_case(
             verb: Optional[str],
             expected: Dict[str, str],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should return internal flag values from ini file sections for given verb"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt.flags.values": {
                     "var_1": "global-1",
                     "var_2": "global-2"
@@ -928,7 +1015,7 @@ def describe_IniFileConfigProvider():
                     "var_1": "test-1"
                 },
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
 
             with patch("app.dbt.config.jsonschema.DbtFlagsSchema.validate_flag_availability"):
                 # act
@@ -937,10 +1024,10 @@ def describe_IniFileConfigProvider():
                 # assert
                 assert result == expected
 
-        def test_no_scope_conflict(ini_config: AutoCommitConfigParser):
+        def test_no_scope_conflict(mock_config: AutoCommitConfigParser):
             """should return internal flag values for verb even if same-name options exist in global scope"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt.flags.values": {
                     "var_1": "global-1",
                     "var_2": "global-2"
@@ -949,7 +1036,7 @@ def describe_IniFileConfigProvider():
                     "var_1": "run-1"
                 }
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
 
             with patch("app.dbt.config.jsonschema.DbtFlagsSchema.validate_flag_availability"):
                 # act
@@ -970,9 +1057,9 @@ def describe_IniFileConfigProvider():
                         }
                     },
                     {
-                        "message": "INI: [dbt.flags.values]: Unrecognized flags",
+                        "message": "FileConfigProvider: Section `[dbt.flags.values]`: Unrecognized flags",
                         "exceptions": [
-                            (KeyError, 'INI: [dbt.flags.values].var_1: ("--var-1") is not recognized as a valid global dbt flag.')
+                            (KeyError, 'Option `[dbt.flags.values].var_1`: --var-1 is not recognized as a valid global dbt flag.')
                         ]
                     }
                 ),
@@ -986,10 +1073,10 @@ def describe_IniFileConfigProvider():
                         }
                     },
                     {
-                        "message": "INI: [dbt.flags.values]: Unrecognized flags",
+                        "message": "FileConfigProvider: Section `[dbt.flags.values]`: Unrecognized flags",
                         "exceptions": [
-                            (KeyError, 'INI: [dbt.flags.values].var_1: ("--var-1") is not recognized as a valid global dbt flag.'),
-                            (KeyError, 'INI: [dbt.flags.values].var_2: ("--var-2") is not recognized as a valid global dbt flag.')
+                            (KeyError, 'Option `[dbt.flags.values].var_1`: --var-1 is not recognized as a valid global dbt flag.'),
+                            (KeyError, 'Option `[dbt.flags.values].var_2`: --var-2 is not recognized as a valid global dbt flag.')
                         ]
                     }
                 ),
@@ -1002,9 +1089,9 @@ def describe_IniFileConfigProvider():
                         }
                     },
                     {
-                        "message": "INI: [dbt.run.flags.values]: Unrecognized flags",
+                        "message": "FileConfigProvider: Section `[dbt.run.flags.values]`: Unrecognized flags",
                         "exceptions": [
-                            (KeyError, 'INI: [dbt.run.flags.values].var_1: ("--var-1") is not recognized as a valid dbt run flag.')
+                            (KeyError, 'Option `[dbt.run.flags.values].var_1`: --var-1 is not recognized as a valid dbt run flag.')
                         ]
                     }
                 ),
@@ -1018,10 +1105,10 @@ def describe_IniFileConfigProvider():
                         }
                     },
                     {
-                        "message": "INI: [dbt.run.flags.values]: Unrecognized flags",
+                        "message": "FileConfigProvider: Section `[dbt.run.flags.values]`: Unrecognized flags",
                         "exceptions": [
-                            (KeyError, 'INI: [dbt.run.flags.values].var_1: ("--var-1") is not recognized as a valid dbt run flag.'),
-                            (KeyError, 'INI: [dbt.run.flags.values].var_2: ("--var-2") is not recognized as a valid dbt run flag.')
+                            (KeyError, 'Option `[dbt.run.flags.values].var_1`: --var-1 is not recognized as a valid dbt run flag.'),
+                            (KeyError, 'Option `[dbt.run.flags.values].var_2`: --var-2 is not recognized as a valid dbt run flag.')
                         ]
                     }
                 )
@@ -1031,39 +1118,41 @@ def describe_IniFileConfigProvider():
             verb: Optional[str],
             ini_content: Dict,
             error: Dict[str, Any],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should raise an ExceptionGroup comprised of one KeyError per invalid flag, with matching messages"""
             # arrange
-            ini_config.write_dict(ini_content)
-            provider = IniFileConfigProvider()
+            mock_config.write_dict(ini_content)
+            provider = FileConfigProvider()
 
             # act & assert
-            with pytest.raises(ExceptionGroup, match=error["message"]) as exc_info:
+            with pytest.raises(ExceptionGroup) as exc_info:
                 provider.get_flag_internal_values(verb)
 
-            assert len(exc_info.exceptions) == len(error["exceptions"]), (
-                f"ExceptionGroup should have {len(error['exceptions'])} exceptions. "
-                f"Got {len(exc_info.exceptions)} instead."
+            assert str(exc_info.value) == (
+                error["message"] + "\n"
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+                f" ({len(error["exceptions"])} sub-exception" # sub-exception count
+                f"{'s' if len(error["exceptions"]) > 1 else ''}"  # sub-exception plural
+                ")"
             )
-            for idx, exc in enumerate(exc_info.exceptions):
-                assert isinstance(exc, error["exceptions"][idx][0]), (
-                    f"ExceptionGroup.exceptions[{idx}] should be an instance of "
-                    f"{error['exceptions'][idx][0]}. Got {type(exc)} instead."
-                )
-                assert str(exc) == error["exceptions"][idx][1], (
-                    f"ExceptionGroup.exceptions[{idx}] should have message "
-                    f"'{error['exceptions'][idx][1]}'. Got '{str(exc)}' instead."
+
+            # assert
+            for idx, (ExcType, message) in enumerate(error["exceptions"]):
+                exc_info.group_contains(
+                    expected_exception=ExcType,
+                    match=re.escape(message)
                 )
 
     def describe_get_flag_internal_values_apply_global():
-        def test_returns_none_when_option_not_set(ini_config: AutoCommitConfigParser):
+        def test_returns_none_when_option_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].apply_global_internal_flag_values is not set"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"dummy": "yes"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act
@@ -1072,13 +1161,13 @@ def describe_IniFileConfigProvider():
             # assert
             assert result is None
 
-        def test_returns_allowed_verbs_when_option_has_valid_value(ini_config: AutoCommitConfigParser):
+        def test_returns_allowed_verbs_when_option_has_valid_value(mock_config: AutoCommitConfigParser):
             """should return set of verbs when [dbt].apply_global_internal_flag_values has valid value"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_internal_flag_values": "run,test"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act
@@ -1097,19 +1186,26 @@ def describe_IniFileConfigProvider():
         )
         def test_raises_when_option_value_has_invalid_format(
             value: str,
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should raise ValueError when [dbt].apply_global_internal_flag_values format is invalid"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_internal_flag_values": value}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match="INI: [dbt].apply_global_internal_flag_values: Should be in the form 'verb(,verb)+'"):
+            with pytest.raises(ValueError) as exc_info:
                 provider.get_flag_internal_values_apply_global(available_verbs)
+        
+            # assert
+            assert str(exc_info.value) == (
+                f'FileConfigProvider: Option `[dbt].apply_global_internal_flag_values` should be in the form "verb(,verb)+".\n'
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
         @pytest.mark.parametrize(
             "value,unsupported_verbs",
@@ -1133,28 +1229,38 @@ def describe_IniFileConfigProvider():
         def test_raises_when_option_value_contains_unsupported_verbs(
             value: str,
             unsupported_verbs: List[str],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should raise ValueError when [dbt].apply_global_internal_flag_values contains unsupported verb(s)"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_internal_flag_values": value}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match=f"INI: [dbt].apply_global_internal_flag_values: Verbs {unsupported_verbs} are not supported"):
+            with pytest.raises(ValueError) as exc_info:
                 provider.get_flag_internal_values_apply_global(available_verbs)
+        
+            # assert
+            assert str(exc_info.value) == (
+                f"FileConfigProvider: Option `[dbt].apply_global_internal_flag_values`: Verbs {unsupported_verbs} "
+                "are not supported.\n"
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
+
+            
 
     def describe_get_projects_root_dir():
-        def test_returns_none_when_option_not_set(ini_config: AutoCommitConfigParser):
+        def test_returns_none_when_option_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].projects_root_dir is not set"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"dummy": "yes"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
 
             # act
             result = provider.get_projects_root_dir()
@@ -1162,32 +1268,32 @@ def describe_IniFileConfigProvider():
             # assert
             assert result is None
 
-        def test_returns_path_when_option_set(ini_config: AutoCommitConfigParser):
+        def test_returns_path_when_option_set(mock_config: AutoCommitConfigParser, tmp_path: Path):
             """should return [dbt].projects_root_dir as a Path instance when it is set"""
             # arrange
-            ini_config.write_dict({
-                "dbt": {"projects_root_dir": "/path/to/dir"}
+            mock_config.write_dict({
+                "dbt": {"projects_root_dir": tmp_path}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
 
             # act
             result = provider.get_projects_root_dir()
 
             # assert
-            assert result == Path("/path/to/dir")
+            assert result == tmp_path
 
     def describe_get_variables():
         @pytest.mark.parametrize("verb", [None, "run"])
         def test_returns_none_when_no_sections(
             verb: Optional[str],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should return None when no vars sections exist in ini file"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"dummy": "yes"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
 
             # act
             result = provider.get_variables(verb)
@@ -1252,12 +1358,12 @@ def describe_IniFileConfigProvider():
             verb: Optional[str],
             ini_content: Dict,
             expected: Dict[str, str],
-            ini_config: AutoCommitConfigParser
+            mock_config: AutoCommitConfigParser
         ):
             """should return variables as a dict with keys in snake_case when variables are set in ini file"""
             # arrange
-            ini_config.write_dict(ini_content)
-            provider = IniFileConfigProvider()
+            mock_config.write_dict(ini_content)
+            provider = FileConfigProvider()
 
             # act
             result = provider.get_variables(verb)
@@ -1265,10 +1371,10 @@ def describe_IniFileConfigProvider():
             # assert
             assert result == expected
 
-        def test_verb_variables_only_specific_verb(ini_config: AutoCommitConfigParser):
+        def test_verb_variables_only_specific_verb(mock_config: AutoCommitConfigParser):
             """should only return variables from [dbt.{verb}.vars] when verb is specified"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt.vars": {
                     "var_1": "global-1",
                     "var_2": "global-2"
@@ -1282,7 +1388,7 @@ def describe_IniFileConfigProvider():
                     "var_2": "test-2"
                 }
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
 
             # act
             result = provider.get_variables("run")
@@ -1294,13 +1400,13 @@ def describe_IniFileConfigProvider():
             }
 
     def describe_get_variables_apply_global():
-        def test_returns_none_when_option_not_set(ini_config: AutoCommitConfigParser):
+        def test_returns_none_when_option_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].apply_global_vars is not set"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"dummy": "yes"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act
@@ -1309,13 +1415,13 @@ def describe_IniFileConfigProvider():
             # assert
             assert result is None
 
-        def test_returns_verbs_when_option_has_valid_value(ini_config: AutoCommitConfigParser):
+        def test_returns_verbs_when_option_has_valid_value(mock_config: AutoCommitConfigParser):
             """should return Set[verb] when [dbt].apply_global_vars has valid value"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_vars": "run,test"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act
@@ -1324,28 +1430,43 @@ def describe_IniFileConfigProvider():
             # assert
             assert result == {"run", "test"}
 
-        def test_raises_when_option_value_has_invalid_format(ini_config: AutoCommitConfigParser):
+        def test_raises_when_option_value_has_invalid_format(mock_config: AutoCommitConfigParser):
             """should raise ValueError when [dbt].apply_global_vars format is invalid"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_vars": "run|test"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match="INI: [dbt].apply_global_vars: Should be in the form 'verb(,verb)+'"):
+            with pytest.raises(ValueError) as exc_info:
                 provider.get_variables_apply_global(available_verbs)
+        
+            # assert
+            assert str(exc_info.value) == (
+                f'FileConfigProvider: Option `[dbt].apply_global_vars` should be in the form "verb(,verb)+".\n'
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
 
-        def test_raises_when_option_value_contains_unsupported_verbs(ini_config: AutoCommitConfigParser):
+        def test_raises_when_option_value_contains_unsupported_verbs(mock_config: AutoCommitConfigParser):
             """should raise ValueError when [dbt].apply_global_vars contains unsupported verb(s)"""
             # arrange
-            ini_config.write_dict({
+            mock_config.write_dict({
                 "dbt": {"apply_global_vars": "run,verb"}
             })
-            provider = IniFileConfigProvider()
+            provider = FileConfigProvider()
             available_verbs = {"run", "seed", "snapshot", "test"}
 
             # act & assert
-            with pytest.raises(ValueError, match="INI: [dbt].apply_global_vars: Verbs ['verb'] are not supported"):
+            with pytest.raises(ValueError) as exc_info:
                 provider.get_variables_apply_global(available_verbs)
+        
+            # assert
+            assert str(exc_info.value) == (
+                f"FileConfigProvider: Option `[dbt].apply_global_vars`: Verbs ['verb'] "
+                "are not supported.\n"
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )

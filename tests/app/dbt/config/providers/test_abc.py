@@ -14,7 +14,7 @@ import pytest
 from app.dbt.config.providers.abc import BaseConfigProvider
 
 # Helper concrete class for testing abstract methods
-class TestConfigProvider(BaseConfigProvider):
+class MockConfigProvider(BaseConfigProvider):
     """Concrete implementation of BaseConfigProvider for testing"""
     def __init__(self, **kwargs):
         self.responses = kwargs
@@ -306,7 +306,7 @@ def describe_concrete_implementation():
     def test_get_allowed_verbs(available_verbs):
         """Test get_allowed_verbs returns expected value"""
         expected = {'run', 'test'}
-        provider = TestConfigProvider(allowed_verbs=expected)
+        provider = MockConfigProvider(allowed_verbs=expected)
         result = provider.get_allowed_verbs(available_verbs)
         assert result == expected
 
@@ -315,16 +315,16 @@ def describe_concrete_implementation():
         expected_global = {'DBT_ENV_GLOBAL': 'value'}
         expected_verb = {'DBT_ENV_RUN': 'value'}
         
-        provider = TestConfigProvider(env_variables=expected_global)
+        provider = MockConfigProvider(env_variables=expected_global)
         assert provider.get_env_variables(None) == expected_global
         
-        provider = TestConfigProvider(env_variables=expected_verb)
+        provider = MockConfigProvider(env_variables=expected_verb)
         assert provider.get_env_variables('run') == expected_verb
 
     def test_get_env_variables_apply_global(available_verbs):
         """Test get_env_variables_apply_global returns expected value"""
         expected = {'run', 'test'}
-        provider = TestConfigProvider(env_variables_apply_global=expected)
+        provider = MockConfigProvider(env_variables_apply_global=expected)
         result = provider.get_env_variables_apply_global(available_verbs)
         assert result == expected
 
@@ -333,16 +333,16 @@ def describe_concrete_implementation():
         expected_global = {'global_flag1': True, 'global_flag2': False}
         expected_verb = {'run_flag1': True, 'run_flag2': False}
         
-        provider = TestConfigProvider(flag_allowlist=expected_global)
+        provider = MockConfigProvider(flag_allowlist=expected_global)
         assert provider.get_flag_allowlist(None) == expected_global
         
-        provider = TestConfigProvider(flag_allowlist=expected_verb)
+        provider = MockConfigProvider(flag_allowlist=expected_verb)
         assert provider.get_flag_allowlist('run') == expected_verb
 
     def test_get_flag_allowlist_apply_global(available_verbs):
         """Test get_flag_allowlist_apply_global returns expected value"""
         expected = {'run', 'test'}
-        provider = TestConfigProvider(flag_allowlist_apply_global=expected)
+        provider = MockConfigProvider(flag_allowlist_apply_global=expected)
         result = provider.get_flag_allowlist_apply_global(available_verbs)
         assert result == expected
 
@@ -351,23 +351,23 @@ def describe_concrete_implementation():
         expected_global = {'global_flag1': 'value1', 'global_flag2': 'value2'}
         expected_verb = {'run_flag1': 'value1', 'run_flag2': 'value2'}
         
-        provider = TestConfigProvider(flag_internal_values=expected_global)
+        provider = MockConfigProvider(flag_internal_values=expected_global)
         assert provider.get_flag_internal_values(None) == expected_global
         
-        provider = TestConfigProvider(flag_internal_values=expected_verb)
+        provider = MockConfigProvider(flag_internal_values=expected_verb)
         assert provider.get_flag_internal_values('run') == expected_verb
 
     def test_get_flag_internal_values_apply_global(available_verbs):
         """Test get_flag_internal_values_apply_global returns expected value"""
         expected = {'run', 'test'}
-        provider = TestConfigProvider(flag_internal_values_apply_global=expected)
+        provider = MockConfigProvider(flag_internal_values_apply_global=expected)
         result = provider.get_flag_internal_values_apply_global(available_verbs)
         assert result == expected
 
     def test_get_projects_root_dir():
         """Test get_projects_root_dir returns expected value"""
         expected = Path('/path/to/projects')
-        provider = TestConfigProvider(projects_root_dir=expected)
+        provider = MockConfigProvider(projects_root_dir=expected)
         result = provider.get_projects_root_dir()
         assert result == expected
 
@@ -376,22 +376,22 @@ def describe_concrete_implementation():
         expected_global = {'global_var1': 'value1', 'global_var2': 'value2'}
         expected_verb = {'run_var1': 'value1', 'run_var2': 'value2'}
         
-        provider = TestConfigProvider(variables=expected_global)
+        provider = MockConfigProvider(variables=expected_global)
         assert provider.get_variables(None) == expected_global
         
-        provider = TestConfigProvider(variables=expected_verb)
+        provider = MockConfigProvider(variables=expected_verb)
         assert provider.get_variables('run') == expected_verb
 
     def test_get_variables_apply_global(available_verbs):
         """Test get_variables_apply_global returns expected value"""
         expected = {'run', 'test'}
-        provider = TestConfigProvider(variables_apply_global=expected)
+        provider = MockConfigProvider(variables_apply_global=expected)
         result = provider.get_variables_apply_global(available_verbs)
         assert result == expected
 
     def test_returns_none_when_not_configured():
         """Test all methods return None when their respective responses are not configured"""
-        provider = TestConfigProvider()
+        provider = MockConfigProvider()
         available_verbs = {'run', 'test', 'seed'}
         
         assert provider.get_allowed_verbs(available_verbs) is None

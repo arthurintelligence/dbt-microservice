@@ -40,7 +40,7 @@ def mock_env(monkeypatch):
 
 
 @pytest.fixture
-def ini_config(mock_env: MockEnv, tmp_path: Path) -> AutoCommitConfigParser:
+def mock_config(mock_env: MockEnv, tmp_path: Path) -> AutoCommitConfigParser:
     """
     Fixture that eases management of a .ini file.
     Generates a default, empty ini file, saves its path to \
@@ -64,6 +64,8 @@ def ini_config(mock_env: MockEnv, tmp_path: Path) -> AutoCommitConfigParser:
             ConfigParser instance for the .ini config file \
             for the test.
     """
-    path = tmp_path / f"/{uuid4()}/config.ini"
+    path = tmp_path / f"{uuid4()}/config.ini"
+    path.parent.mkdir(parents=True)
+    path.touch()
     mock_env.setenv("DBT_CONFIG_FILE", path)
     return AutoCommitConfigParser(path)
