@@ -1,3 +1,4 @@
+# pylint: disable=unused-variable,abstract-class-instantiated,missing-class-docstring
 """Tests for BaseConfigProvider abstract base class.
 
 Tests both abstract method enforcement and concrete implementation behavior,
@@ -56,12 +57,12 @@ def test_cannot_instantiate_abstract_base():
 
 def describe_abstract_methods():
     """Test suite for verifying abstract method enforcement"""
-    
+
     def test_get_allowed_verbs_is_abstract():
         """Verify get_allowed_verbs is enforced as abstract"""
         class InvalidProvider(BaseConfigProvider):
             pass
-        
+
         with pytest.raises(TypeError, match=r"Can't instantiate abstract class InvalidProvider"):
             InvalidProvider()
 
@@ -70,7 +71,7 @@ def describe_abstract_methods():
         class InvalidProvider(BaseConfigProvider):
             def get_allowed_verbs(self, available_verbs: Set[str]) -> Optional[Set[str]]:
                 return None
-        
+
         with pytest.raises(TypeError, match=r"Can't instantiate abstract class InvalidProvider"):
             InvalidProvider()
 
@@ -81,7 +82,7 @@ def describe_abstract_methods():
                 return None
             def get_env_variables(self, verb: Optional[str]) -> Optional[Dict[str, str]]:
                 return None
-        
+
         with pytest.raises(TypeError, match=r"Can't instantiate abstract class InvalidProvider"):
             InvalidProvider()
 
@@ -94,7 +95,7 @@ def describe_abstract_methods():
                 return None
             def get_env_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
                 return None
-        
+
         with pytest.raises(TypeError, match=r"Can't instantiate abstract class InvalidProvider"):
             InvalidProvider()
 
@@ -109,7 +110,7 @@ def describe_abstract_methods():
                 return None
             def get_flag_allowlist(self, verb: Optional[str]) -> Optional[Dict[str, bool]]:
                 return None
-        
+
         with pytest.raises(TypeError, match=r"Can't instantiate abstract class InvalidProvider"):
             InvalidProvider()
 
@@ -126,7 +127,7 @@ def describe_abstract_methods():
                 return None
             def get_flag_allowlist_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
                 return None
-        
+
         with pytest.raises(TypeError, match=r"Can't instantiate abstract class InvalidProvider"):
             InvalidProvider()
 
@@ -145,7 +146,7 @@ def describe_abstract_methods():
                 return None
             def get_flag_internal_values(self, verb: Optional[str]) -> Optional[Dict[str, Any]]:
                 return None
-        
+
         with pytest.raises(TypeError, match=r"Can't instantiate abstract class InvalidProvider"):
             InvalidProvider()
 
@@ -166,7 +167,7 @@ def describe_abstract_methods():
                 return None
             def get_flag_internal_values_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
                 return None
-        
+
         with pytest.raises(TypeError, match=r"Can't instantiate abstract class InvalidProvider"):
             InvalidProvider()
 
@@ -189,7 +190,7 @@ def describe_abstract_methods():
                 return None
             def get_projects_root_dir(self) -> Optional[Path]:
                 return None
-        
+
         with pytest.raises(TypeError, match=r"Can't instantiate abstract class InvalidProvider"):
             InvalidProvider()
 
@@ -214,42 +215,42 @@ def describe_abstract_methods():
                 return None
             def get_variables(self, verb: Optional[str]) -> Optional[Dict[str, Any]]:
                 return None
-        
+
         with pytest.raises(TypeError, match=r"Can't instantiate abstract class InvalidProvider"):
             InvalidProvider()
 
 def describe_base_provider_methods():
     """Test suite to achieve coverage of the 'pass' statements in BaseConfigProvider"""
-    
+
     class MinimalProvider(BaseConfigProvider):
         """Concrete implementation that inherits the pass statements"""
         def get_allowed_verbs(self, available_verbs: Set[str]) -> Optional[Set[str]]:
             return super().get_allowed_verbs(available_verbs)
-            
+
         def get_env_variables(self, verb: Optional[str]) -> Optional[Dict[str, str]]:
             return super().get_env_variables(verb)
-            
+
         def get_env_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
             return super().get_env_variables_apply_global(available_verbs)
-            
+
         def get_flag_allowlist(self, verb: Optional[str]) -> Optional[Dict[str, bool]]:
             return super().get_flag_allowlist(verb)
-            
+
         def get_flag_allowlist_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
             return super().get_flag_allowlist_apply_global(available_verbs)
-            
+
         def get_flag_internal_values(self, verb: Optional[str]) -> Optional[Dict[str, Any]]:
             return super().get_flag_internal_values(verb)
-            
+
         def get_flag_internal_values_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
             return super().get_flag_internal_values_apply_global(available_verbs)
-            
+
         def get_projects_root_dir(self) -> Optional[Path]:
             return super().get_projects_root_dir()
-            
+
         def get_variables(self, verb: Optional[str]) -> Optional[Dict[str, Any]]:
             return super().get_variables(verb)
-            
+
         def get_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
             return super().get_variables_apply_global(available_verbs)
 
@@ -314,10 +315,10 @@ def describe_concrete_implementation():
         """Test get_env_variables returns expected value for both verb and global scope"""
         expected_global = {'DBT_ENV_GLOBAL': 'value'}
         expected_verb = {'DBT_ENV_RUN': 'value'}
-        
+
         provider = MockConfigProvider(env_variables=expected_global)
         assert provider.get_env_variables(None) == expected_global
-        
+
         provider = MockConfigProvider(env_variables=expected_verb)
         assert provider.get_env_variables('run') == expected_verb
 
@@ -332,10 +333,10 @@ def describe_concrete_implementation():
         """Test get_flag_allowlist returns expected value for both verb and global scope"""
         expected_global = {'global_flag1': True, 'global_flag2': False}
         expected_verb = {'run_flag1': True, 'run_flag2': False}
-        
+
         provider = MockConfigProvider(flag_allowlist=expected_global)
         assert provider.get_flag_allowlist(None) == expected_global
-        
+
         provider = MockConfigProvider(flag_allowlist=expected_verb)
         assert provider.get_flag_allowlist('run') == expected_verb
 
@@ -350,10 +351,10 @@ def describe_concrete_implementation():
         """Test get_flag_internal_values returns expected value for both verb and global scope"""
         expected_global = {'global_flag1': 'value1', 'global_flag2': 'value2'}
         expected_verb = {'run_flag1': 'value1', 'run_flag2': 'value2'}
-        
+
         provider = MockConfigProvider(flag_internal_values=expected_global)
         assert provider.get_flag_internal_values(None) == expected_global
-        
+
         provider = MockConfigProvider(flag_internal_values=expected_verb)
         assert provider.get_flag_internal_values('run') == expected_verb
 
@@ -375,10 +376,10 @@ def describe_concrete_implementation():
         """Test get_variables returns expected value for both verb and global scope"""
         expected_global = {'global_var1': 'value1', 'global_var2': 'value2'}
         expected_verb = {'run_var1': 'value1', 'run_var2': 'value2'}
-        
+
         provider = MockConfigProvider(variables=expected_global)
         assert provider.get_variables(None) == expected_global
-        
+
         provider = MockConfigProvider(variables=expected_verb)
         assert provider.get_variables('run') == expected_verb
 
@@ -393,7 +394,7 @@ def describe_concrete_implementation():
         """Test all methods return None when their respective responses are not configured"""
         provider = MockConfigProvider()
         available_verbs = {'run', 'test', 'seed'}
-        
+
         assert provider.get_allowed_verbs(available_verbs) is None
         assert provider.get_env_variables(None) is None
         assert provider.get_env_variables('run') is None
