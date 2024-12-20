@@ -2,52 +2,14 @@ import configparser
 import os
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from convert_case import kebab_case, snake_case
 
 from app.dbt.config.jsonschema import DbtFlagsSchema
+from app.utils.bool import BoolParser
 
 from .abc import BaseConfigProvider
-
-
-class BoolParser:
-    """Small utility class to parse str to bool"""
-
-    truthies = ("true", "yes", "1", "on")
-    falsies = ("false", "no", "0", "off")
-
-    @classmethod
-    def valid_values(cls) -> Sequence[str]:
-        """
-        Returns set of all str values that are accepted as booleans.
-
-        Returns:
-            Tuple[Any]: All str values that are accepted as booleans.
-        """
-        return BoolParser.truthies + BoolParser.falsies
-
-    @classmethod
-    def parse(cls, value: Optional[str], default: bool = False) -> bool:
-        """
-        Parses a str to a bool
-
-        Args:
-            value (str): Value to parse
-
-        Raises:
-            ValueError: if value is not in BoolParser.truthies or BoolParser.falsies
-
-        Returns:
-            bool: Boolean representation of value
-        """
-        if value is None:
-            return default
-
-        str_value = str(value).strip().lower()
-        if str_value not in cls.valid_values():
-            raise ValueError(value)
-        return str_value in BoolParser.truthies
 
 
 class FileConfigProvider(BaseConfigProvider):
@@ -189,11 +151,6 @@ class FileConfigProvider(BaseConfigProvider):
         def is_base_var(key: str) -> bool:
             return is_env_var(key) and not is_secret_var(key) and not is_custom_env_var(key)
 
-        def rename(key: str) -> str:
-            if is_base_var(key) and key.startswith("DBT_ENV_"):
-                return f"DBT_{key[8:]}"
-            return key
-
         section = "dbt.env_vars" if verb is None else f"dbt.{verb}.env_vars"
         options = self._read_ini_section(section)
         if options is None or len(options) == 0:
@@ -205,8 +162,8 @@ class FileConfigProvider(BaseConfigProvider):
             key = key.upper()
             if not is_env_var(key):
                 errors.append(key)
-            elif should_rename:
-                env_vars[rename(key)] = value
+            elif should_rename and is_base_var(key):
+                env_vars[f"DBT_{key[8:]}"] = value
             else:
                 env_vars[key] = value
 
@@ -218,9 +175,9 @@ class FileConfigProvider(BaseConfigProvider):
                 [KeyError(option) for option in errors],
             )
 
-        if len(env_vars) == 0:
-            return None
-
+        # "if options is None or len(options) == 0" above already
+        # guards for no env vars should return None
+        # env_vars here should always have at least 1 key,value pair
         return env_vars
 
     def get_env_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
@@ -258,6 +215,9 @@ class FileConfigProvider(BaseConfigProvider):
                 environment.
                 Returns None if the allowlist is empty.
         """
+        if self.config is None:
+            return None
+
         section_name = f"dbt.{verb + '.' if verb else ''}flags.allowlist"
         section = self._read_ini_section(section_name)
         if section is None or len(section) == 0:
@@ -268,11 +228,13 @@ class FileConfigProvider(BaseConfigProvider):
             try:
                 allowlist[snake_case(flag)] = BoolParser.parse(value)
             except ValueError as exc:
-                raise configparser.ParsingError(
+                parsing_exc = configparser.ParsingError(str(self.path))
+                parsing_exc.message = (
                     f"{type(self).__name__}: Option `[{section_name}].{flag}`: Value "
                     "could not be coerced to a boolean value. \n"
                     f"Valid values: {BoolParser.valid_values()}." + self._err_message_footer
-                ) from exc
+                )
+                raise parsing_exc from exc
 
         DbtFlagsSchema.validate_flag_availability(
             verb=verb,
@@ -321,6 +283,9 @@ class FileConfigProvider(BaseConfigProvider):
                 Dict[flag, value] for the given verb, from ini.
                 Values returned are not parsed.
         """
+        if self.config is None:
+            return None
+
         section_name = "dbt.flags.values" if verb is None else f"dbt.{verb}.flags.values"
         section = self._read_ini_section(section_name)
         if section is None or len(section) == 0:
@@ -383,7 +348,7 @@ class FileConfigProvider(BaseConfigProvider):
         if not prd.exists():
             raise FileNotFoundError(
                 f"{type(self).__name__}: Option `[dbt].projects_root_dir`: "
-                f'File "{prd}" cannot be found.' + self._err_message_footer
+                f'Directory "{prd}" cannot be found.' + self._err_message_footer
             )
         if not prd.is_dir():
             raise NotADirectoryError(

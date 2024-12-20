@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "app"))
 
 
 @pytest.fixture
-def mock_env(monkeypatch: pytest.MonkeyPatch) -> Generator[MockEnv]:
+def mock_env(monkeypatch: pytest.MonkeyPatch) -> Generator[MockEnv, None, None]:
     """
     Fixture that tracks and restores environment variable changes made during \
     tests.

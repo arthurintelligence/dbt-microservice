@@ -1,5 +1,5 @@
 # pylint: disable=unused-variable,abstract-class-instantiated,missing-class-docstring
-# mypy: disable-error-code="no-untyped-def, abstract, misc, no-any-return"
+# mypy: disable-error-code="no-untyped-def, abstract, misc, no-any-return, safe-super"
 """Tests for BaseConfigProvider abstract base class.
 
 Tests both abstract method enforcement and concrete implementation behavior,
@@ -330,38 +330,36 @@ def describe_base_provider_methods():
         """Concrete implementation that inherits the pass statements"""
 
         def get_allowed_verbs(self, available_verbs: Set[str]) -> Optional[Set[str]]:
-            return super(BaseConfigProvider, self).get_allowed_verbs(available_verbs)
+            return super().get_allowed_verbs(available_verbs)
 
         def get_env_variables(self, verb: Optional[str]) -> Optional[Dict[str, str]]:
-            return super(BaseConfigProvider, self).get_env_variables(verb)
+            return super().get_env_variables(verb)
 
         def get_env_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
-            return super(BaseConfigProvider, self).get_env_variables_apply_global(available_verbs)
+            return super().get_env_variables_apply_global(available_verbs)
 
         def get_flag_allowlist(self, verb: Optional[str]) -> Optional[Dict[str, bool]]:
-            return super(BaseConfigProvider, self).get_flag_allowlist(verb)
+            return super().get_flag_allowlist(verb)
 
         def get_flag_allowlist_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
-            return super(BaseConfigProvider, self).get_flag_allowlist_apply_global(available_verbs)
+            return super().get_flag_allowlist_apply_global(available_verbs)
 
         def get_flag_internal_values(self, verb: Optional[str]) -> Optional[Dict[str, Any]]:
-            return super(BaseConfigProvider, self).get_flag_internal_values(verb)
+            return super().get_flag_internal_values(verb)
 
         def get_flag_internal_values_apply_global(
             self, available_verbs: Set[str]
         ) -> Optional[Set[str]]:
-            return super(BaseConfigProvider, self).get_flag_internal_values_apply_global(
-                available_verbs
-            )
+            return super().get_flag_internal_values_apply_global(available_verbs)
 
         def get_projects_root_dir(self) -> Optional[Path]:
-            return super(BaseConfigProvider, self).get_projects_root_dir()
+            return super().get_projects_root_dir()
 
         def get_variables(self, verb: Optional[str]) -> Optional[Dict[str, Any]]:
-            return super(BaseConfigProvider, self).get_variables(verb)
+            return super().get_variables(verb)
 
         def get_variables_apply_global(self, available_verbs: Set[str]) -> Optional[Set[str]]:
-            return super(BaseConfigProvider, self).get_variables_apply_global(available_verbs)
+            return super().get_variables_apply_global(available_verbs)
 
     @pytest.fixture
     def provider():

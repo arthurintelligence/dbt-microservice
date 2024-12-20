@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional, Set, Union
 from convert_case import kebab_case, snake_case
 
 from app.dbt.config.jsonschema import DbtFlagsSchema
+from app.utils.bool import BoolParser
 
 from .abc import BaseConfigProvider
 
@@ -73,7 +74,7 @@ class EnvironmentConfigProvider(BaseConfigProvider):
         def rename(key: str) -> str:
             return (
                 key.replace(f"DBT_{verb_str}ENV_", "DBT_")
-                if _is_truthy(os.getenv("DBT_RENAME_ENV")) and is_base_var(key)
+                if BoolParser.parse(os.getenv("DBT_RENAME_ENV")) and is_base_var(key)
                 else key.replace(verb_str, "")
             )
 
@@ -352,8 +353,3 @@ class EnvironmentConfigProvider(BaseConfigProvider):
                 "are not supported"
             )
         return value
-
-
-def _is_truthy(value: Optional[Union[str, int, bool]]) -> bool:
-    value = value.lower() if isinstance(value, str) else value
-    return value in ("true", "yes", "1", "on", 1, True)

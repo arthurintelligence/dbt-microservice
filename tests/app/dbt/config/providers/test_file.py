@@ -277,6 +277,19 @@ def describe_FileConfigProvider():
             assert config.get("section", "key") == "value"
 
     def describe_get_allowed_verbs():
+        def test_returns_none_when_no_config_file_present(mock_env: MockEnv):
+            """should return None when DBT_CONFIG_FILE is not set"""
+            # arrange
+            mock_env.delenv("DBT_CONFIG_FILE")
+            provider = FileConfigProvider()
+            available_verbs = {"run", "seed", "snapshot", "test"}
+
+            # act
+            result = provider.get_allowed_verbs(available_verbs)
+
+            # assert
+            assert result is None
+
         def test_returns_none_when_variable_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].allowed_verbs is not set"""
             # arrange
@@ -304,6 +317,21 @@ def describe_FileConfigProvider():
 
             # assert
             assert result == {"run", "test"}
+
+        def test_returns_available_verbs_when_provided_star_expansion(
+            mock_config: AutoCommitConfigParser,
+        ):
+            """should return all available verbs when [dbt].allowed_verbs='*'"""
+            # arrange
+            mock_config.write_dict({"dbt": {"allowed_verbs": "*"}})
+            provider = FileConfigProvider()
+            available_verbs = {"run", "seed", "snapshot", "test"}
+
+            # act
+            result = provider.get_allowed_verbs(available_verbs)
+
+            # assert
+            assert result == available_verbs
 
         @pytest.mark.parametrize(
             "allowed_verb_str",
@@ -379,10 +407,34 @@ def describe_FileConfigProvider():
             )
 
     def describe_get_env_variables():
+        def test_returns_none_when_no_config_file_present(mock_env: MockEnv):
+            """should return None when DBT_CONFIG_FILE is not set"""
+            # arrange
+            mock_env.delenv("DBT_CONFIG_FILE")
+            provider = FileConfigProvider()
+
+            # act
+            result = provider.get_env_variables(None)
+
+            # assert
+            assert result is None
+
         def test_returns_none_when_no_global_section(mock_config: AutoCommitConfigParser):
             """should return None when target is global dbt env and is no [dbt.env_vars] section"""
             # arrange
             mock_config.write_dict({"dbt.run.env_vars": {"DBT_ENV_VAR_1": "run-1"}})
+            provider = FileConfigProvider()
+
+            # act
+            result = provider.get_env_variables(None)
+
+            # assert
+            assert result is None
+
+        def test_returns_none_when_section_empty(mock_config: AutoCommitConfigParser):
+            """should return None when env vars section exists but is empty"""
+            # arrange
+            mock_config.write_dict({"dbt.env_vars": {}})
             provider = FileConfigProvider()
 
             # act
@@ -402,6 +454,40 @@ def describe_FileConfigProvider():
 
             # assert
             assert result is None
+
+        def test_raises_when_rename_env_invalid(mock_config: AutoCommitConfigParser):
+            """should raise ValueError when [dbt].rename_env value is invalid"""
+            # arrange
+            mock_config.write_dict(
+                {"dbt": {"rename_env": "invalid"}, "dbt.env_vars": {"DBT_ENV_VAR_1": "value"}}
+            )
+            provider = FileConfigProvider()
+
+            # act & assert
+            with pytest.raises(ValueError) as exc_info:
+                provider.get_env_variables(None)
+
+            assert str(exc_info.value).startswith(
+                "FileConfigProvider: Option `[dbt].rename_env`: Value could not be coerced to a boolean value"
+            )
+
+        @pytest.mark.parametrize(
+            "env_vars",
+            [{"invalid_var": "value"}, {"dbt": "value"}, {"DBT": "value"}, {"dbt_var": "value"}],
+        )
+        def test_raises_for_invalid_env_var_names(
+            env_vars: Dict[str, str], mock_config: AutoCommitConfigParser
+        ):
+            """should raise ExceptionGroup when env var names are invalid"""
+            # arrange
+            mock_config.write_dict({"dbt.env_vars": env_vars})
+            provider = FileConfigProvider()
+
+            # act & assert
+            with pytest.raises(ExceptionGroup) as exc_info:
+                provider.get_env_variables(None)
+
+            assert "Invalid environment variable names found" in str(exc_info.value)
 
         @pytest.mark.parametrize(
             "ini_content,expected",
@@ -663,6 +749,19 @@ def describe_FileConfigProvider():
             assert result == expected
 
     def describe_get_env_variables_apply_global():
+        def test_returns_none_when_no_config_file_present(mock_env: MockEnv):
+            """should return None when DBT_CONFIG_FILE is not set"""
+            # arrange
+            mock_env.delenv("DBT_CONFIG_FILE")
+            provider = FileConfigProvider()
+            available_verbs = {"run", "seed", "snapshot", "test"}
+
+            # act
+            result = provider.get_env_variables_apply_global(available_verbs)
+
+            # assert
+            assert result is None
+
         def test_returns_none_when_option_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].apply_global_env_vars is not set"""
             # arrange
@@ -688,6 +787,21 @@ def describe_FileConfigProvider():
 
             # assert
             assert result == {"run", "test"}
+
+        def test_returns_available_verbs_when_provided_star_expansion(
+            mock_config: AutoCommitConfigParser,
+        ):
+            """should return all available verbs when [dbt].apply_global_env_vars='*'"""
+            # arrange
+            mock_config.write_dict({"dbt": {"apply_global_env_vars": "*"}})
+            provider = FileConfigProvider()
+            available_verbs = {"run", "seed", "snapshot", "test"}
+
+            # act
+            result = provider.get_env_variables_apply_global(available_verbs)
+
+            # assert
+            assert result == available_verbs
 
         def test_raises_when_option_value_has_invalid_format(mock_config: AutoCommitConfigParser):
             """should raise ValueError when [dbt].apply_global_env_vars format is invalid"""
@@ -729,6 +843,56 @@ def describe_FileConfigProvider():
             )
 
     def describe_get_flag_allowlist():
+        def test_returns_none_when_no_config_file_present(mock_env: MockEnv):
+            """should return None when DBT_CONFIG_FILE is not set"""
+            # arrange
+            mock_env.delenv("DBT_CONFIG_FILE")
+            provider = FileConfigProvider()
+
+            # act
+            result = provider.get_flag_allowlist(None)
+
+            # assert
+            assert result is None
+
+        @pytest.mark.parametrize(
+            "verb,config",
+            [(None, {"dbt.flags.allowlist": {}}), ("run", {"dbt.run.flags.allowlist": {}})],
+        )
+        def test_returns_none_when_section_empty(
+            verb: Optional[str],
+            config: Dict[str, Dict[str, str]],
+            mock_config: AutoCommitConfigParser,
+        ):
+            """should return None when flag values section exists but is empty"""
+            # arrange
+            mock_config.write_dict(config)
+            provider = FileConfigProvider()
+
+            # act
+            result = provider.get_flag_allowlist(verb)
+
+            # assert
+            assert result is None
+
+        def test_raises_when_flag_value_invalid(mock_config: AutoCommitConfigParser):
+            """should raise ParsingError when flag allowlist value cannot be coerced to boolean"""
+            # arrange
+            mock_config.write_dict({"dbt.flags.allowlist": {"my_flag": "invalid_bool_value"}})
+            provider = FileConfigProvider()
+
+            # act & assert
+            with pytest.raises(configparser.ParsingError) as exc_info:
+                provider.get_flag_allowlist(None)
+
+            assert str(exc_info.value) == (
+                "FileConfigProvider: Option `[dbt.flags.allowlist].my_flag`: Value "
+                "could not be coerced to a boolean value. \n"
+                "Valid values: ('true', 'yes', '1', 'on', 'false', 'no', '0', 'off').\n"
+                f"File: {mock_config.path}\n"
+                '(Configured through environment variable "DBT_CONFIG_FILE")'
+            )
+
         @pytest.mark.parametrize(
             "verb,ini_content,expected",
             [
@@ -796,6 +960,19 @@ def describe_FileConfigProvider():
                 assert result == expected
 
     def describe_get_flag_allowlist_apply_global():
+        def test_returns_none_when_no_config_file_present(mock_env: MockEnv):
+            """should return None when DBT_CONFIG_FILE is not set"""
+            # arrange
+            mock_env.delenv("DBT_CONFIG_FILE")
+            provider = FileConfigProvider()
+            available_verbs = {"run", "seed", "snapshot", "test"}
+
+            # act
+            result = provider.get_flag_allowlist_apply_global(available_verbs)
+
+            # assert
+            assert result is None
+
         def test_returns_none_when_option_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].apply_global_allowlist is not set"""
             # arrange
@@ -823,6 +1000,21 @@ def describe_FileConfigProvider():
 
             # assert
             assert result == {"run", "test"}
+
+        def test_returns_available_verbs_when_provided_star_expansion(
+            mock_config: AutoCommitConfigParser,
+        ):
+            """should return all available verbs when [dbt].apply_global_allowlist='*'"""
+            # arrange
+            mock_config.write_dict({"dbt": {"apply_global_allowlist": "*"}})
+            provider = FileConfigProvider()
+            available_verbs = {"run", "seed", "snapshot", "test"}
+
+            # act
+            result = provider.get_flag_allowlist_apply_global(available_verbs)
+
+            # assert
+            assert result == available_verbs
 
         @pytest.mark.parametrize(
             "value",
@@ -893,6 +1085,30 @@ def describe_FileConfigProvider():
             )
 
     def describe_get_flag_internal_values():
+        def test_returns_none_when_no_config_file_present(mock_env: MockEnv):
+            """should return None when DBT_CONFIG_FILE is not set"""
+            # arrange
+            mock_env.delenv("DBT_CONFIG_FILE")
+            provider = FileConfigProvider()
+
+            # act
+            result = provider.get_flag_internal_values(None)
+
+            # assert
+            assert result is None
+
+        def test_returns_none_when_section_empty(mock_config: AutoCommitConfigParser):
+            """should return None when flag values section exists but is empty"""
+            # arrange
+            mock_config.write_dict({"dbt.flags.values": {}})
+            provider = FileConfigProvider()
+
+            # act
+            result = provider.get_flag_internal_values(None)
+
+            # assert
+            assert result is None
+
         @pytest.mark.parametrize(
             "verb,expected",
             [
@@ -1038,6 +1254,19 @@ def describe_FileConfigProvider():
                 exc_info.group_contains(expected_exception=ExcType, match=re.escape(message))
 
     def describe_get_flag_internal_values_apply_global():
+        def test_returns_none_when_no_config_file_present(mock_env: MockEnv):
+            """should return None when DBT_CONFIG_FILE is not set"""
+            # arrange
+            mock_env.delenv("DBT_CONFIG_FILE")
+            provider = FileConfigProvider()
+            available_verbs = {"run", "seed", "snapshot", "test"}
+
+            # act
+            result = provider.get_flag_internal_values_apply_global(available_verbs)
+
+            # assert
+            assert result is None
+
         def test_returns_none_when_option_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].apply_global_internal_flag_values is not set"""
             # arrange
@@ -1065,6 +1294,21 @@ def describe_FileConfigProvider():
 
             # assert
             assert result == {"run", "test"}
+
+        def test_returns_available_verbs_when_provided_star_expansion(
+            mock_config: AutoCommitConfigParser,
+        ):
+            """should return all available verbs when [dbt].apply_global_internal_flag_values='*'"""
+            # arrange
+            mock_config.write_dict({"dbt": {"apply_global_internal_flag_values": "*"}})
+            provider = FileConfigProvider()
+            available_verbs = {"run", "seed", "snapshot", "test"}
+
+            # act
+            result = provider.get_flag_internal_values_apply_global(available_verbs)
+
+            # assert
+            assert result == available_verbs
 
         @pytest.mark.parametrize(
             "value",
@@ -1135,6 +1379,18 @@ def describe_FileConfigProvider():
             )
 
     def describe_get_projects_root_dir():
+        def test_returns_none_when_no_config_file_present(mock_env: MockEnv):
+            """should return None when DBT_CONFIG_FILE is not set"""
+            # arrange
+            mock_env.delenv("DBT_CONFIG_FILE")
+            provider = FileConfigProvider()
+
+            # act
+            result = provider.get_projects_root_dir()
+
+            # assert
+            assert result is None
+
         def test_returns_none_when_option_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].projects_root_dir is not set"""
             # arrange
@@ -1159,7 +1415,47 @@ def describe_FileConfigProvider():
             # assert
             assert result == tmp_path
 
+        def test_raises_when_path_not_found(mock_config: AutoCommitConfigParser):
+            """should raise FileNotFoundError when projects root directory doesn't exist"""
+            # arrange
+            mock_config.write_dict({"dbt": {"projects_root_dir": "/nonexistent/path"}})
+            provider = FileConfigProvider()
+
+            # act & assert
+            with pytest.raises(FileNotFoundError) as exc_info:
+                provider.get_projects_root_dir()
+
+            assert "cannot be found" in str(exc_info.value)
+
+        def test_raises_when_path_not_directory(
+            mock_config: AutoCommitConfigParser, tmp_path: Path
+        ):
+            """should raise NotADirectoryError when projects root path is not a directory"""
+            # arrange
+            file_path = tmp_path / "not_a_directory"
+            file_path.touch()
+            mock_config.write_dict({"dbt": {"projects_root_dir": str(file_path)}})
+            provider = FileConfigProvider()
+
+            # act & assert
+            with pytest.raises(NotADirectoryError) as exc_info:
+                provider.get_projects_root_dir()
+
+            assert "does not point to a directory" in str(exc_info.value)
+
     def describe_get_variables():
+        def test_returns_none_when_no_config_file_present(mock_env: MockEnv):
+            """should return None when DBT_CONFIG_FILE is not set"""
+            # arrange
+            mock_env.delenv("DBT_CONFIG_FILE")
+            provider = FileConfigProvider()
+
+            # act
+            result = provider.get_variables(None)
+
+            # assert
+            assert result is None
+
         @pytest.mark.parametrize("verb", [None, "run"])
         def test_returns_none_when_no_sections(
             verb: Optional[str], mock_config: AutoCommitConfigParser
@@ -1228,6 +1524,19 @@ def describe_FileConfigProvider():
             assert result == {"var_1": "run-1", "var_2": "run-2"}
 
     def describe_get_variables_apply_global():
+        def test_returns_none_when_no_config_file_present(mock_env: MockEnv):
+            """should return None when DBT_CONFIG_FILE is not set"""
+            # arrange
+            mock_env.delenv("DBT_CONFIG_FILE")
+            provider = FileConfigProvider()
+            available_verbs = {"run", "seed", "snapshot", "test"}
+
+            # act
+            result = provider.get_variables_apply_global(available_verbs)
+
+            # assert
+            assert result is None
+
         def test_returns_none_when_option_not_set(mock_config: AutoCommitConfigParser):
             """should return None when [dbt].apply_global_vars is not set"""
             # arrange
@@ -1253,6 +1562,21 @@ def describe_FileConfigProvider():
 
             # assert
             assert result == {"run", "test"}
+
+        def test_returns_available_verbs_when_provided_star_expansion(
+            mock_config: AutoCommitConfigParser,
+        ):
+            """should return all available verbs when [dbt].apply_global_vars='*'"""
+            # arrange
+            mock_config.write_dict({"dbt": {"apply_global_vars": "*"}})
+            provider = FileConfigProvider()
+            available_verbs = {"run", "seed", "snapshot", "test"}
+
+            # act
+            result = provider.get_variables_apply_global(available_verbs)
+
+            # assert
+            assert result == available_verbs
 
         def test_raises_when_option_value_has_invalid_format(mock_config: AutoCommitConfigParser):
             """should raise ValueError when [dbt].apply_global_vars format is invalid"""
@@ -1292,3 +1616,16 @@ def describe_FileConfigProvider():
                 f"File: {mock_config.path}\n"
                 '(Configured through environment variable "DBT_CONFIG_FILE")'
             )
+
+    def describe__err_message_footer():
+        def test_returns_empty_str_when_no_config_file_present(mock_env: MockEnv):
+            """should return None when DBT_CONFIG_FILE is not set"""
+            # arrange
+            mock_env.delenv("DBT_CONFIG_FILE")
+            provider = FileConfigProvider()
+
+            # act
+            result = provider._err_message_footer
+
+            # assert
+            assert result == ""

@@ -51,6 +51,11 @@ class AutoCommitConfigParser(ConfigParser):
         """Get the path to the config file."""
         return self._path
 
+    @property
+    def content(self) -> str:
+        """Returns the content of the config file at self.path"""
+        return self._path.read_text(encoding="utf-8")
+
     def write_string(self, string: str) -> None:
         """
         Read config from string and write to file.
